@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+runtime/*
+vendor
+*.log
+.env
+

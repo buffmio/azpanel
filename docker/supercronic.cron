@@ -1,0 +1,6 @@
+0 0 * * * php /app/think tools --action statisticsTraffic
+0 * * * * php /app/think autoRefreshAccount
+0 * * * * php /app/think closeTimeoutTask
+0 * * * * php /app/think trafficControlStop
+*/5 * * * * php /app/think trafficControlStart
+
