@@ -15,6 +15,7 @@ use app\model\SshKey;
 use app\model\Traffic;
 use app\model\User;
 use app\service\AzureNetworkSecurityRuleService;
+use app\service\ReinstallProfileService;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use think\facade\View;
@@ -573,6 +574,12 @@ class UserAzureServer extends UserBase
         $disk_tiers = AzureList::diskTiers();
         $traffic_rules = ControlRule::where('user_id', session('user_id'))->select();
         $ssh_key = SshKey::where('user_id', session('user_id'))->find();
+        $user = User::find(session('user_id'));
+        $personalise = json_decode($user->personalise ?? '[]', true);
+        if (!is_array($personalise)) {
+            $personalise = [];
+        }
+        $reinstall_defaults = ReinstallProfileService::buildDefaults($personalise);
 
         if ($server->disk_details === null) {
             $disk_details = json_encode(AzureApi::getDisks($server));
@@ -626,6 +633,7 @@ class UserAzureServer extends UserBase
         View::assign('vm_disk_tier', $vm_disk_tier);
         View::assign('disk_details', $disk_details);
         View::assign('traffic_rules', $traffic_rules);
+        View::assign('reinstall_defaults', $reinstall_defaults);
         View::assign('network_dialog', $network_dialog);
         View::assign('vm_disk_created', $vm_disk_created);
         View::assign('network_details', $network_details);

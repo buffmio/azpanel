@@ -245,34 +245,48 @@
                                 <i class="mdui-icon material-icons">restore</i>&nbsp;系统重装
                             </p>
                             <div class="mdui-typo">
-                                <p>重装会删除并重建虚拟机计算资源，保留当前网络。成功启动后，原系统盘会被删除。</p>
-                                <div class="mdui-m-t-2">
-                                    镜像：<select id="reinstall_image" class="mdui-select" mdui-select>
-                                        {volist name="images" id="image"}
-                                        <option value="{$key}">{$image.display}</option>
-                                        {/volist}
-                                    </select>
+                                <p>保留当前网卡、公网 IP 和安全组，成功启动后自动删除原系统盘。</p>
+                            </div>
+                            <div class="mdui-row">
+                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                    <div class="mdui-m-t-2">
+                                        镜像：<select id="reinstall_image" class="mdui-select" mdui-select>
+                                            {volist name="images" id="image"}
+                                            <option value="{$key}">{$image.display}</option>
+                                            {/volist}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mdui-textfield mdui-textfield-floating-label">
-                                    <i class="mdui-icon material-icons">assignment_ind</i>
-                                    <label class="mdui-textfield-label">用户名</label>
-                                    <input class="mdui-textfield-input" id="reinstall_user" value="azpanel">
+                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                    <div class="mdui-m-t-2">
+                                        密钥：<select id="reinstall_ssh_key" class="mdui-select" mdui-select>
+                                            <option value="0">不使用</option>
+                                            {if !empty($ssh_key)}
+                                            <option value="{$ssh_key->id}">{$ssh_key->name}</option>
+                                            {/if}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mdui-textfield mdui-textfield-floating-label">
-                                    <i class="mdui-icon material-icons">vpn_key</i>
-                                    <label class="mdui-textfield-label">密码</label>
-                                    <input class="mdui-textfield-input" id="reinstall_passwd" value="Azure123456789">
+                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">用户名</label>
+                                        <input class="mdui-textfield-input" id="reinstall_user"
+                                            value="{$reinstall_defaults.user}">
+                                    </div>
                                 </div>
-                                <div class="mdui-m-t-2">
-                                    密钥：
-                                    <select id="reinstall_ssh_key" class="mdui-select" mdui-select>
-                                        <option value="0">不使用</option>
-                                        {if !empty($ssh_key)}
-                                        <option value="{$ssh_key->id}">{$ssh_key->name}</option>
-                                        {/if}
-                                    </select>
+                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">密码</label>
+                                        <input class="mdui-textfield-input" id="reinstall_passwd"
+                                            value="{$reinstall_defaults.password}">
+                                    </div>
                                 </div>
-                                <div class="mdui-m-t-2">
+                                <div class="mdui-col-md-12 mdui-col-sm-12">
+                                    <div class="mdui-typo" style="font-size: 12px; color: rgba(0, 0, 0, 0.54);">
+                                        <p>用户名和密码默认读取个人偏好。Windows 镜像请使用密码登录，Linux 镜像可选 SSH 密钥。</p>
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-1">
                                     <button onclick="reinstall(this)" data-id="{$server->vm_id}"
                                         class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-red">重装
                                     </button>
@@ -293,11 +307,18 @@
                 <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
                     <div class="mdui-card" style="overflow: visible">
                         <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">format_list_bulleted</i>&nbsp;当前规则
+                            </p>
                             {if $security_group_name == null}
                             <div class="mdui-typo">
                                 <p>此虚拟机没有绑定网络安全组。</p>
                             </div>
                             {else}
+                            <div class="mdui-typo">
+                                <p>安全组：<code>{$security_group_name}</code></p>
+                                <p>规则数：<code>{:count($security_rules)}</code></p>
+                            </div>
                             <div class="mdui-table-fluid">
                                 <table class="mdui-table mdui-table-hoverable">
                                     <thead>
@@ -306,8 +327,10 @@
                                         <th>方向</th>
                                         <th>动作</th>
                                         <th>协议</th>
-                                        <th>来源</th>
-                                        <th>端口</th>
+                                        <th>来源地址</th>
+                                        <th>来源端口</th>
+                                        <th>目标地址</th>
+                                        <th>目标端口</th>
                                         <th>优先级</th>
                                         <th>操作</th>
                                     </tr>
@@ -320,6 +343,8 @@
                                         <td>{$rule.properties.access}</td>
                                         <td>{$rule.properties.protocol}</td>
                                         <td>{$rule.properties.sourceAddressPrefix ?? '*'}</td>
+                                        <td>{$rule.properties.sourcePortRange ?? '*'}</td>
+                                        <td>{$rule.properties.destinationAddressPrefix ?? '*'}</td>
                                         <td>{$rule.properties.destinationPortRange ?? '*'}</td>
                                         <td>{$rule.properties.priority}</td>
                                         <td>
@@ -332,65 +357,87 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                            <div class="mdui-row mdui-m-t-2">
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+            {if $security_group_name != null}
+            <div class="mdui-row">
+                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">add_circle_outline</i>&nbsp;添加规则
+                            </p>
+                            <div class="mdui-typo">
+                                <p>优先级数值越小越先匹配。常用写法是来源地址和来源端口使用 <code>*</code>，只限制目标端口。</p>
+                            </div>
+                            <div class="mdui-row">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">规则名称</label>
                                         <input id="nsg_name" class="mdui-textfield-input" value="allow_custom" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
-                                    方向：<select id="nsg_direction" class="mdui-select" mdui-select>
-                                        <option value="Inbound">入站</option>
-                                        <option value="Outbound">出站</option>
-                                    </select>
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
+                                    <div class="mdui-m-t-2">
+                                        方向：<select id="nsg_direction" class="mdui-select" mdui-select>
+                                            <option value="Inbound">入站</option>
+                                            <option value="Outbound">出站</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
-                                    动作：<select id="nsg_access" class="mdui-select" mdui-select>
-                                        <option value="Allow">允许</option>
-                                        <option value="Deny">拒绝</option>
-                                    </select>
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
+                                    <div class="mdui-m-t-2">
+                                        动作：<select id="nsg_access" class="mdui-select" mdui-select>
+                                            <option value="Allow">允许</option>
+                                            <option value="Deny">拒绝</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
-                                    协议：<select id="nsg_protocol" class="mdui-select" mdui-select>
-                                        <option value="Tcp">TCP</option>
-                                        <option value="Udp">UDP</option>
-                                        <option value="Icmp">ICMP</option>
-                                        <option value="*">全部</option>
-                                    </select>
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
+                                    <div class="mdui-m-t-2">
+                                        协议：<select id="nsg_protocol" class="mdui-select" mdui-select>
+                                            <option value="Tcp">TCP</option>
+                                            <option value="Udp">UDP</option>
+                                            <option value="Icmp">ICMP</option>
+                                            <option value="*">全部</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">来源地址</label>
                                         <input id="nsg_source_address" class="mdui-textfield-input" value="*" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">来源端口</label>
                                         <input id="nsg_source_port" class="mdui-textfield-input" value="*" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">目标地址</label>
                                         <input id="nsg_destination_address" class="mdui-textfield-input" value="*" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">目标端口</label>
                                         <input id="nsg_destination_port" class="mdui-textfield-input" value="22" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">优先级</label>
                                         <input id="nsg_priority" class="mdui-textfield-input" type="number" value="300" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                <div class="mdui-col-md-9 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">备注</label>
                                         <input id="nsg_description" class="mdui-textfield-input" value="" />
@@ -398,15 +445,15 @@
                                 </div>
                                 <div class="mdui-col-md-3 mdui-col-sm-12 mdui-m-t-2">
                                     <button onclick="saveNsgRule(this)" data-id="{$server->vm_id}"
-                                        class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">添加/更新
+                                        class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">添加或更新
                                     </button>
                                 </div>
                             </div>
-                            {/if}
                         </div>
                     </div>
                 </div>
             </div>
+            {/if}
 
             <div class="mdui-container">
                 <div class="mdui-dialog" id="vm-detailss">
@@ -718,10 +765,22 @@
         );
     };
 
+    function syncReinstallCredentialMode() {
+        var image = $('#reinstall_image').val() || '';
+        var usePasswordOnly = image.indexOf('Win') !== -1;
+
+        $('#reinstall_ssh_key').prop('disabled', usePasswordOnly);
+        if (usePasswordOnly) {
+            $('#reinstall_ssh_key').prop('value', '0');
+        }
+    }
+
     $("#new_tier").prop('value', '{$vm_disk_tier}');
     $("#traffic_rule").prop('value', '{$server->rule}');
     $("#reinstall_image").prop('value', '{$current_image_key ?? ''}');
     $("#new_size option[value='{$server->vm_size}']").attr('disabled', 'disabled');
+    $('#reinstall_image').on('change', syncReinstallCredentialMode);
+    syncReinstallCredentialMode();
 </script>
 {include file="../app/view/user/footer.html" /}
 
