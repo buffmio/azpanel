@@ -398,22 +398,19 @@ class AzureApi extends BaseController
         $label = Str::lower($label);
 
         $body = [
+            'sku' => [
+                'name' => 'Standard',
+                'tier' => 'Regional',
+            ],
             'location' => $location,
             'properties' => [
+                'publicIPAddressVersion' => 'IPv4',
+                'publicIPAllocationMethod' => 'Static',
                 'dnsSettings' => [
                     'domainNameLabel' => $label,
                 ],
             ],
         ];
-
-        if ($create_ipv6) {
-            $body['sku'] = [
-                'name' => 'Standard',
-                'tier' => 'Regional',
-            ];
-            $body['properties']['publicIPAddressVersion'] = 'IPv4';
-            $body['properties']['publicIPAllocationMethod'] = 'Static';
-        }
 
         $url = 'https://management.azure.com/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $resource_group_name . '/providers/Microsoft.Network/publicIPAddresses/' . $ip_name . '?api-version=2021-03-01';
 
