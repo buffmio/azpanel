@@ -154,6 +154,16 @@
                             </div>
                             <div class="mdui-col-sm-12 mdui-col-md-12">
                                 <div class="mdui-m-t-2">
+                                    防火墙：
+                                    <select id="vm_nsg_preset" class="mdui-select" mdui-select>
+                                        <option value="common" selected>常用端口</option>
+                                        <option value="secure">只 SSH/RDP</option>
+                                        <option value="all">全放端口</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mdui-col-sm-12 mdui-col-md-12">
+                                <div class="mdui-m-t-2">
                                     密钥：
                                     <select id="vm_ssh_key" class="mdui-select" mdui-select>
                                         <option value="0">不使用</option>
@@ -455,6 +465,7 @@
                         vm_disk_size: $('#vm_disk_size').val(),
                         vm_image: $('#vm_image').val(),
                         vm_traffic_rule: $('#vm_traffic_rule').val(),
+                        vm_nsg_preset: $('#vm_nsg_preset').val(),
                         vm_ssh_key: $('#vm_ssh_key').val(),
                         create_check: $('#create_check').val(),
                         create_ipv6: $('#create_ipv6').val(),

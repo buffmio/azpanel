@@ -14,6 +14,7 @@ use app\model\ControlRule;
 use app\model\SshKey;
 use app\model\Traffic;
 use app\model\User;
+use app\service\AzureNetworkSecurityRuleService;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use think\facade\View;
@@ -111,6 +112,7 @@ class UserAzureServer extends UserBase
         $vm_disk_size = (int) input('vm_disk_size/s');
         $vm_ssh_key = (int) input('vm_ssh_key/s');
         $vm_traffic_rule = (int) input('vm_traffic_rule/s');
+        $vm_nsg_preset = input('vm_nsg_preset/s', 'common');
         $create_check = (int) input('create_check/s');
         $create_ipv6 = (bool) input('create_ipv6/s');
 
@@ -205,6 +207,7 @@ class UserAzureServer extends UserBase
                 'size' => $vm_size,
                 'script' => $vm_script,
                 'ipv6' => $create_ipv6,
+                'nsg_preset' => $vm_nsg_preset,
             ],
         ];
 
@@ -238,8 +241,10 @@ class UserAzureServer extends UserBase
         $steps = ($vm_number * 6) + 6;
         $task_id = UserTask::create(session('user_id'), '创建虚拟机', $params, $task_uuid);
 
+        $steps += $vm_number; // 每台虚拟机都创建并绑定网络安全组
+
         if ($create_ipv6) {
-            $steps += 2; // 多了创建ipv6地址和网络安全组的任务
+            $steps += $vm_number; // 每台虚拟机多了创建 ipv6 地址的任务
         }
 
         if ($account->reg_capacity === 0) {
@@ -404,18 +409,17 @@ class UserAzureServer extends UserBase
                     $vm_location
                 );
 
-                if ($create_ipv6) {
-                    // 创建网络安全组
-                    UserTask::update($task_id, (++$progress / $steps), '在资源组 ' . $vm_resource_group_name . ' 中创建网络安全组');
-                    sleep(2);
-                    $security_group_id = AzureApi::createNetworkSecurityGroups(
-                        $client,
-                        $account,
-                        $vm_resource_group_name,
-                        $vm_location,
-                        $security_group_name
-                    );
-                }
+                // 创建网络安全组
+                UserTask::update($task_id, (++$progress / $steps), '在资源组 ' . $vm_resource_group_name . ' 中创建网络安全组');
+                sleep(2);
+                $security_group_id = AzureApi::createNetworkSecurityGroups(
+                    $client,
+                    $account,
+                    $vm_resource_group_name,
+                    $vm_location,
+                    $security_group_name,
+                    AzureNetworkSecurityRuleService::presetRules($vm_nsg_preset, Str::contains($vm_image, 'Win'))
+                );
 
                 // 创建公网ipv4地址
                 sleep(2);

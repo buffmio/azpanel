@@ -311,49 +311,15 @@ class AzureApi extends BaseController
         $account,
         $resource_group_name,
         $location,
-        $name
+        $name,
+        array $security_rules
     ) {
         // https://docs.microsoft.com/zh-cn/rest/api/virtualnetwork/network-security-groups/create-or-update
 
         $body = [
             'location' => $location,
             'properties' => [
-                'securityRules' => [
-                    [
-                        'name' => 'allow_any_in',
-                        'properties' => [
-                            'protocol' => '*',
-                            'sourcePortRange' => '*',
-                            'destinationPortRange' => '*',
-                            'sourceAddressPrefix' => '*',
-                            'destinationAddressPrefix' => '*',
-                            'access' => 'Allow',
-                            'priority' => 100,
-                            'direction' => 'Inbound',
-                            'sourcePortRanges' => [],
-                            'destinationPortRanges' => [],
-                            'sourceAddressPrefixes' => [],
-                            'destinationAddressPrefixes' => [],
-                        ],
-                    ],
-                    [
-                        'name' => 'allow_any_out',
-                        'properties' => [
-                            'protocol' => '*',
-                            'sourcePortRange' => '*',
-                            'destinationPortRange' => '*',
-                            'sourceAddressPrefix' => '*',
-                            'destinationAddressPrefix' => '*',
-                            'access' => 'Allow',
-                            'priority' => 110,
-                            'direction' => 'Outbound',
-                            'sourcePortRanges' => [],
-                            'destinationPortRanges' => [],
-                            'sourceAddressPrefixes' => [],
-                            'destinationAddressPrefixes' => [],
-                        ],
-                    ],
-                ],
+                'securityRules' => $security_rules,
             ],
         ];
 
@@ -596,6 +562,9 @@ class AzureApi extends BaseController
                     ],
                 ],
             ];
+        }
+
+        if ($security_group_id !== '') {
             $body['properties']['networkSecurityGroup'] = [
                 'id' => $security_group_id,
             ];
