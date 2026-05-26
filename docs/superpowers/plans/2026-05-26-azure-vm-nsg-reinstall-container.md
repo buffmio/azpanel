@@ -471,6 +471,15 @@ git commit -m "feat: add Azure NSG API helpers"
 - Modify: `app/controller/UserAzureServer.php`
 - Modify: `app/view/user/azure/server/create.html`
 
+- [ ] **Step 0: 确认原版创建页 UI 约束**
+
+新增控件必须遵循 `app/view/user/azure/server/create.html` 现有风格：
+
+1. 继续使用 MDUI 的 `mdui-col-md-*`、`mdui-select`、`mdui-textfield` 结构。
+2. 新控件放在现有网络、IPv6、流量控制规则附近，不新增独立视觉区域。
+3. AJAX 提交继续沿用当前页面写法，只在原有 `data` 对象中追加字段。
+4. 不引入新的 CSS 框架、新组件库或新的按钮视觉风格。
+
 - [ ] **Step 1: 修改创建页表单**
 
 在 `create.html` 的 VM 网络/流量规则附近增加：
@@ -703,6 +712,16 @@ git commit -m "feat: add Azure VM NSG rule endpoints"
 **Files:**
 - Modify: `app/view/user/azure/server/read.html`
 
+- [ ] **Step 0: 确认原版详情页 UI 约束**
+
+新增 NSG 管理区域必须遵循 `app/view/user/azure/server/read.html` 现有风格：
+
+1. 使用现有 MDUI 表格、按钮、选择框、输入框和 snackbar 提示。
+2. 新区域放在详情页已有信息区或操作区之后，不重排原有页面结构。
+3. 删除按钮、危险操作颜色和确认提示沿用页面已有做法。
+4. 较宽表格沿用现有可横向滚动表格处理方式。
+5. 不新增一套独立设计语言，不使用与原版不一致的大卡片、营销式区块或新图标体系。
+
 - [ ] **Step 1: 增加防火墙规则区域**
 
 在 VM 详情页操作区域后增加一个面板，包含规则表格和表单。字段 ID 使用：
@@ -806,6 +825,7 @@ loadNsgRules();
 1. 防火墙区域不遮挡现有内容。
 2. 表格在移动端可横向滚动。
 3. 空规则列表时页面不报 JS 错误。
+4. 新增区域的按钮、表格、表单、提示文案和原版 VM 详情页视觉一致。
 
 - [ ] **Step 6: 提交**
 
@@ -968,6 +988,16 @@ git commit -m "feat: add Azure VM reinstall API helpers"
 - Modify: `app/controller/UserAzureServer.php`
 - Modify: `app/view/user/azure/server/read.html`
 
+- [ ] **Step 0: 确认原版重装 UI 约束**
+
+系统重装 UI 必须遵循原版 VM 详情页风格：
+
+1. 入口按钮放在现有 VM 操作区附近，按钮样式与扩盘、变配、销毁等现有操作一致。
+2. 高风险确认提示沿用现有危险操作的确认方式，不做新向导。
+3. 表单控件使用现有 MDUI `mdui-select` 和 `mdui-textfield`。
+4. 任务进度继续使用现有 `UserTask` 查询和提示方式。
+5. 不大幅重排详情页，不新增与原版不一致的视觉结构。
+
 - [ ] **Step 1: 增加路由**
 
 ```php
@@ -1075,7 +1105,7 @@ if (Str::contains($vm_image, 'Win') && !Str::contains($images[$vm_image]['sku'],
 
 - [ ] **Step 4: 增加 UI 表单**
 
-在 `read.html` 增加系统重装区域，包含镜像、用户名、密码、SSH key、脚本输入和确认按钮。按钮调用 `reinstall()`。
+在 `read.html` 增加系统重装区域，包含镜像、用户名、密码、SSH key、脚本输入和确认按钮。区域位置、表单结构、按钮颜色和提示方式必须与原版详情页一致，按钮调用 `reinstall()`。
 
 - [ ] **Step 5: 增加 JS**
 
