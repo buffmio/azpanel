@@ -562,9 +562,11 @@ class UserAzureServer extends UserBase
         }
 
         $vm_sizes = AzureList::sizes();
+        $images = AzureList::images();
         $disk_sizes = AzureList::diskSizes();
         $disk_tiers = AzureList::diskTiers();
         $traffic_rules = ControlRule::where('user_id', session('user_id'))->select();
+        $ssh_key = SshKey::where('user_id', session('user_id'))->find();
 
         if ($server->disk_details === null) {
             $disk_details = json_encode(AzureApi::getDisks($server));
@@ -578,6 +580,13 @@ class UserAzureServer extends UserBase
         $instance_details = json_decode($server->instance_details, true);
         $vm_disk_created = strtotime($instance_details['disks']['0']['statuses']['0']['time']);
         $vm_disk_tier = $disk_details['properties']['tier'] ?? 'P4';
+        $current_image_key = null;
+        foreach ($images as $key => $image) {
+            if ($image['offer'] === $server->os_offer && $image['sku'] === $server->os_sku) {
+                $current_image_key = $key;
+                break;
+            }
+        }
         $security_group_id = $network_details['properties']['networkSecurityGroup']['id'] ?? null;
         $security_group_name = AzureNetworkSecurityRuleService::networkSecurityGroupNameFromId($security_group_id);
         $security_group = null;
@@ -599,6 +608,9 @@ class UserAzureServer extends UserBase
         $security_group_dialog = json_encode($security_group, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         View::assign('server', $server);
+        View::assign('images', $images);
+        View::assign('ssh_key', $ssh_key);
+        View::assign('current_image_key', $current_image_key);
         View::assign('vm_sizes', $vm_sizes);
         View::assign('disk_sizes', $disk_sizes);
         View::assign('disk_tiers', $disk_tiers);
@@ -748,8 +760,12 @@ class UserAzureServer extends UserBase
     public function reinstall($uuid)
     {
         $count = 0;
-        $steps = 7;
+        $steps = 8;
         $task_uuid = input('task_uuid/s');
+        $vm_user = input('vm_user/s');
+        $vm_passwd = input('vm_passwd/s');
+        $vm_image = input('vm_image/s');
+        $vm_ssh_key = (int) input('vm_ssh_key/s');
         $server = AzureServer::where('user_id', session('user_id'))
             ->where('vm_id', $uuid)
             ->find();
@@ -758,38 +774,69 @@ class UserAzureServer extends UserBase
             return json(Tools::msg('0', '重装失败', '虚拟机不存在'));
         }
 
+        $check = self::validateVirtualMachineCredential($vm_user, $vm_passwd);
+        if ($check !== null) {
+            return json(Tools::msg('0', '重装失败', $check));
+        }
+
+        $images = AzureList::images();
+        if (!isset($images[$vm_image])) {
+            return json(Tools::msg('0', '重装失败', '请选择有效的系统镜像'));
+        }
+
+        if (Str::contains($vm_image, 'Win') && $vm_ssh_key !== 0) {
+            return json(Tools::msg('0', '重装失败', 'Windows 系统不能使用 SSH 密钥'));
+        }
+
         $vm_details = json_decode($server->vm_details, true);
         $old_disk_name = $vm_details['properties']['storageProfile']['osDisk']['name'];
-        $new_disk_name = substr($old_disk_name, 0, 45) . '-reinstall-' . time();
+        $interfaces = $vm_details['properties']['networkProfile']['networkInterfaces']['0']['id'];
+        $vm_config = [
+            'vm_size' => $server->vm_size,
+            'vm_disk_size' => $server->disk_size,
+            'vm_user' => $vm_user,
+            'vm_passwd' => $vm_passwd,
+            'vm_script' => null,
+            'vm_ssh_key' => $vm_ssh_key,
+        ];
         $params = [
             'vm_name' => $server->name,
             'old_disk' => $old_disk_name,
-            'new_disk' => $new_disk_name,
-            'image' => $server->os_offer . ' / ' . $server->os_sku,
+            'image' => $images[$vm_image]['display'],
+            'ssh_key' => $vm_ssh_key === 0 ? '不使用' : '使用',
         ];
         $task_id = UserTask::create(session('user_id'), '重装系统', $params, $task_uuid);
 
         try {
-            UserTask::update($task_id, (++$count / $steps), '正在创建新系统盘');
-            $new_disk_id = AzureApi::createOsDiskFromImage($server, $new_disk_name);
-
             UserTask::update($task_id, (++$count / $steps), '正在分离计算资源');
             AzureApi::virtualMachinesDeallocate($server->account_id, $server->request_url);
 
             $this->waitVirtualMachinePowerState($server, 'PowerState/deallocated');
 
-            UserTask::update($task_id, (++$count / $steps), '正在挂载新系统盘');
-            AzureApi::attachOsDiskToVirtualMachine($server, $new_disk_id, $new_disk_name);
+            UserTask::update($task_id, (++$count / $steps), '正在删除旧计算资源');
+            AzureApi::deleteVirtualMachine($server);
+            $this->waitVirtualMachineDeleted($server);
 
-            UserTask::update($task_id, (++$count / $steps), '正在启动虚拟机');
-            AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+            UserTask::update($task_id, (++$count / $steps), '正在使用新镜像重建虚拟机');
+            AzureApi::createAzureVm(
+                new Client(),
+                Azure::find($server->account_id),
+                $server->name,
+                $vm_config,
+                $vm_image,
+                $interfaces,
+                $server->location,
+                $server->resource_group
+            );
 
+            UserTask::update($task_id, (++$count / $steps), '正在等待虚拟机启动');
             $this->waitVirtualMachinePowerState($server, 'PowerState/running');
 
             UserTask::update($task_id, (++$count / $steps), '正在刷新虚拟机信息');
             $vm_details = AzureApi::getAzureVirtualMachine($server->account_id, $server->request_url);
             $network_details = AzureApi::getAzureNetworkInterfacesDetails($server->account_id, $server->network_interfaces, $server->resource_group, $server->at_subscription_id);
             $instance_details = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+            $new_disk_name = $vm_details['properties']['storageProfile']['osDisk']['name'];
             $disk_details = AzureApi::getDisksByName($server, $new_disk_name);
 
             $server->status = $instance_details['statuses']['1']['code'] ?? 'PowerState/running';
@@ -797,6 +844,9 @@ class UserAzureServer extends UserBase
             $server->disk_details = json_encode($disk_details);
             $server->network_details = json_encode($network_details);
             $server->instance_details = json_encode($instance_details);
+            $server->os_offer = $images[$vm_image]['offer'];
+            $server->os_sku = $images[$vm_image]['sku'];
+            $server->disk_size = $vm_details['properties']['storageProfile']['osDisk']['diskSizeGB'] ?? $server->disk_size;
             $server->ip_address = $network_details['properties']['ipConfigurations']['0']['properties']['publicIPAddress']['properties']['ipAddress'] ?? 'null';
             $server->save();
 
@@ -1068,6 +1118,25 @@ class UserAzureServer extends UserBase
         }
     }
 
+    private function waitVirtualMachineDeleted($server): void
+    {
+        $count = 0;
+        do {
+            sleep(2);
+            ++$count;
+            try {
+                AzureApi::getAzureVirtualMachine($server->account_id, $server->request_url);
+            } catch (\Exception $e) {
+                if (method_exists($e, 'getResponse') && $e->getResponse() !== null && $e->getResponse()->getStatusCode() === 404) {
+                    return;
+                }
+                throw $e;
+            }
+        } while ($count < 120);
+
+        throw new \RuntimeException('等待旧计算资源删除超时');
+    }
+
     private static function exceptionMessage(\Exception $e): string
     {
         if (method_exists($e, 'getResponse') && $e->getResponse() !== null) {
@@ -1075,6 +1144,24 @@ class UserAzureServer extends UserBase
         }
 
         return $e->getMessage();
+    }
+
+    private static function validateVirtualMachineCredential($vm_user, $vm_passwd): ?string
+    {
+        $prohibit_user = ['root', 'Admin', 'admin', 'centos', 'debian', 'ubuntu', 'administrator', 'test'];
+        if (!preg_match('/^[a-zA-Z0-9]+$/', $vm_user) || in_array($vm_user, $prohibit_user, true)) {
+            return '用户名只允许使用大小写字母与数字的组合，且不能使用常见用户名';
+        }
+
+        $uppercase = preg_match('@[A-Z]@', $vm_passwd);
+        $lowercase = preg_match('@[a-z]@', $vm_passwd);
+        $number = preg_match('@[0-9]@', $vm_passwd);
+
+        if (!$uppercase || !$lowercase || !$number || strlen($vm_passwd) < 12 || strlen($vm_passwd) > 72) {
+            return '密码不符合要求，请阅读使用说明';
+        }
+
+        return null;
     }
 
     public static function processGeneralData($array, $convert = false)

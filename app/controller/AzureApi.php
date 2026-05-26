@@ -281,6 +281,15 @@ class AzureApi extends BaseController
         ]);
     }
 
+    public static function deleteVirtualMachine($server)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com' . $server->request_url . '?api-version=2021-07-01';
+        $client->delete($url, [
+            'headers' => self::getToken($server->account_id),
+        ]);
+    }
+
     public static function deleteAzureResourcesGroup($account_id, $subscription_id, $resource_group_name)
     {
         $client = new Client();
@@ -640,14 +649,15 @@ class AzureApi extends BaseController
         return $result->id;
     }
 
-    public static function createAzureVm($client, $account, $vm_name, $vm_config, $vm_image, $interfaces, $location)
+    public static function createAzureVm($client, $account, $vm_name, $vm_config, $vm_image, $interfaces, $location, $resource_group_name = null)
     {
         // https://docs.microsoft.com/zh-cn/rest/api/compute/virtual-machines/create-or-update
 
         $images = AzureList::images();
+        $resource_group_name = $resource_group_name ?? $vm_name . '_group';
 
         $body = [
-            'id' => '/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $vm_name . '_group/providers/Microsoft.Compute/virtualMachines/' . $vm_name,
+            'id' => '/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $resource_group_name . '/providers/Microsoft.Compute/virtualMachines/' . $vm_name,
             'name' => $vm_name,
             'type' => 'Microsoft.Compute/virtualMachines',
             'location' => $location,
@@ -704,7 +714,7 @@ class AzureApi extends BaseController
             ];
         }
 
-        $url = 'https://management.azure.com/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $vm_name . '_group/providers/Microsoft.Compute/virtualMachines/' . $vm_name . '?api-version=2021-07-01';
+        $url = 'https://management.azure.com/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $resource_group_name . '/providers/Microsoft.Compute/virtualMachines/' . $vm_name . '?api-version=2021-07-01';
 
         $object = $client->put($url, [
             'headers' => self::getToken($account->id, true),
