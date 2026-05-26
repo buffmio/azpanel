@@ -13,6 +13,13 @@ function test_common_preset_for_linux_allows_ssh_http_and_https(): void
     assertContainsValue('allow_all_out', $names, '常用端口应允许全部出站');
 }
 
+function test_network_security_group_name_is_parsed_from_resource_id(): void
+{
+    $name = AzureNetworkSecurityRuleService::networkSecurityGroupNameFromId('/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/demo_security');
+
+    assertSameValue('demo_security', $name, '应从 Azure 资源 ID 中解析 NSG 名称');
+}
+
 function test_common_preset_for_windows_allows_rdp_http_and_https(): void
 {
     $rules = AzureNetworkSecurityRuleService::presetRules('common', true);

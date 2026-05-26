@@ -578,11 +578,25 @@ class UserAzureServer extends UserBase
         $instance_details = json_decode($server->instance_details, true);
         $vm_disk_created = strtotime($instance_details['disks']['0']['statuses']['0']['time']);
         $vm_disk_tier = $disk_details['properties']['tier'] ?? 'P4';
+        $security_group_id = $network_details['properties']['networkSecurityGroup']['id'] ?? null;
+        $security_group_name = AzureNetworkSecurityRuleService::networkSecurityGroupNameFromId($security_group_id);
+        $security_group = null;
+        $security_rules = [];
+
+        if ($security_group_name !== null) {
+            try {
+                $security_group = AzureApi::getNetworkSecurityGroup($server->account_id, $server->at_subscription_id, $server->resource_group, $security_group_name);
+                $security_rules = $security_group['properties']['securityRules'] ?? [];
+            } catch (\Exception $e) {
+                $security_rules = [];
+            }
+        }
 
         $vm_dialog = json_encode($vm_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $disk_dialog = json_encode($disk_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $network_dialog = json_encode($network_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $instance_dialog = json_encode($instance_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        $security_group_dialog = json_encode($security_group, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         View::assign('server', $server);
         View::assign('vm_sizes', $vm_sizes);
@@ -599,6 +613,9 @@ class UserAzureServer extends UserBase
         View::assign('network_details', $network_details);
         View::assign('instance_dialog', $instance_dialog);
         View::assign('instance_details', $instance_details);
+        View::assign('security_group_name', $security_group_name);
+        View::assign('security_rules', $security_rules);
+        View::assign('security_group_dialog', $security_group_dialog);
         return View::fetch('../app/view/user/azure/server/read.html');
     }
 
@@ -726,6 +743,138 @@ class UserAzureServer extends UserBase
 
         UserTask::end($task_id, false);
         return json(Tools::msg('1', '更换结果', '更换成功'));
+    }
+
+    public function reinstall($uuid)
+    {
+        $count = 0;
+        $steps = 7;
+        $task_uuid = input('task_uuid/s');
+        $server = AzureServer::where('user_id', session('user_id'))
+            ->where('vm_id', $uuid)
+            ->find();
+
+        if ($server === null) {
+            return json(Tools::msg('0', '重装失败', '虚拟机不存在'));
+        }
+
+        $vm_details = json_decode($server->vm_details, true);
+        $old_disk_name = $vm_details['properties']['storageProfile']['osDisk']['name'];
+        $new_disk_name = substr($old_disk_name, 0, 45) . '-reinstall-' . time();
+        $params = [
+            'vm_name' => $server->name,
+            'old_disk' => $old_disk_name,
+            'new_disk' => $new_disk_name,
+            'image' => $server->os_offer . ' / ' . $server->os_sku,
+        ];
+        $task_id = UserTask::create(session('user_id'), '重装系统', $params, $task_uuid);
+
+        try {
+            UserTask::update($task_id, (++$count / $steps), '正在创建新系统盘');
+            $new_disk_id = AzureApi::createOsDiskFromImage($server, $new_disk_name);
+
+            UserTask::update($task_id, (++$count / $steps), '正在分离计算资源');
+            AzureApi::virtualMachinesDeallocate($server->account_id, $server->request_url);
+
+            $this->waitVirtualMachinePowerState($server, 'PowerState/deallocated');
+
+            UserTask::update($task_id, (++$count / $steps), '正在挂载新系统盘');
+            AzureApi::attachOsDiskToVirtualMachine($server, $new_disk_id, $new_disk_name);
+
+            UserTask::update($task_id, (++$count / $steps), '正在启动虚拟机');
+            AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+
+            $this->waitVirtualMachinePowerState($server, 'PowerState/running');
+
+            UserTask::update($task_id, (++$count / $steps), '正在刷新虚拟机信息');
+            $vm_details = AzureApi::getAzureVirtualMachine($server->account_id, $server->request_url);
+            $network_details = AzureApi::getAzureNetworkInterfacesDetails($server->account_id, $server->network_interfaces, $server->resource_group, $server->at_subscription_id);
+            $instance_details = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+            $disk_details = AzureApi::getDisksByName($server, $new_disk_name);
+
+            $server->status = $instance_details['statuses']['1']['code'] ?? 'PowerState/running';
+            $server->vm_details = json_encode($vm_details);
+            $server->disk_details = json_encode($disk_details);
+            $server->network_details = json_encode($network_details);
+            $server->instance_details = json_encode($instance_details);
+            $server->ip_address = $network_details['properties']['ipConfigurations']['0']['properties']['publicIPAddress']['properties']['ipAddress'] ?? 'null';
+            $server->save();
+
+            UserTask::update($task_id, (++$count / $steps), '正在删除原系统盘');
+            AzureApi::deleteDisk($server, $old_disk_name);
+
+            UserTask::update($task_id, (++$count / $steps), '重装完成');
+        } catch (\Exception $e) {
+            $error = self::exceptionMessage($e);
+            UserTask::end($task_id, true, $error);
+            return json(Tools::msg('0', '重装失败', $error));
+        }
+
+        UserTask::end($task_id, false);
+        return json(Tools::msg('1', '重装结果', '重装成功，原系统盘已删除'));
+    }
+
+    public function nsg($uuid)
+    {
+        $server = AzureServer::where('user_id', session('user_id'))
+            ->where('vm_id', $uuid)
+            ->find();
+
+        if ($server === null) {
+            return json(Tools::msg('0', '保存失败', '虚拟机不存在'));
+        }
+
+        try {
+            $network_details = json_decode($server->network_details, true);
+            $security_group_name = AzureNetworkSecurityRuleService::networkSecurityGroupNameFromId($network_details['properties']['networkSecurityGroup']['id'] ?? null);
+            if ($security_group_name === null) {
+                return json(Tools::msg('0', '保存失败', '此虚拟机没有绑定网络安全组'));
+            }
+
+            $rule = AzureNetworkSecurityRuleService::buildRuleFromInput([
+                'name' => input('name/s'),
+                'direction' => input('direction/s'),
+                'protocol' => input('protocol/s'),
+                'source_address' => input('source_address/s'),
+                'source_port' => input('source_port/s'),
+                'destination_address' => input('destination_address/s'),
+                'destination_port' => input('destination_port/s'),
+                'access' => input('access/s'),
+                'priority' => input('priority/d'),
+                'description' => input('description/s'),
+            ]);
+
+            AzureApi::createOrUpdateNetworkSecurityRule($server, $security_group_name, $rule);
+        } catch (\Exception $e) {
+            return json(Tools::msg('0', '保存失败', self::exceptionMessage($e)));
+        }
+
+        return json(Tools::msg('1', '保存结果', 'NSG 规则已保存'));
+    }
+
+    public function deleteNsg($uuid, $name)
+    {
+        $server = AzureServer::where('user_id', session('user_id'))
+            ->where('vm_id', $uuid)
+            ->find();
+
+        if ($server === null) {
+            return json(Tools::msg('0', '删除失败', '虚拟机不存在'));
+        }
+
+        try {
+            $network_details = json_decode($server->network_details, true);
+            $security_group_name = AzureNetworkSecurityRuleService::networkSecurityGroupNameFromId($network_details['properties']['networkSecurityGroup']['id'] ?? null);
+            if ($security_group_name === null) {
+                return json(Tools::msg('0', '删除失败', '此虚拟机没有绑定网络安全组'));
+            }
+
+            AzureApi::deleteNetworkSecurityRule($server, $security_group_name, $name);
+        } catch (\Exception $e) {
+            return json(Tools::msg('0', '删除失败', self::exceptionMessage($e)));
+        }
+
+        return json(Tools::msg('1', '删除结果', 'NSG 规则已删除'));
     }
 
     public function status($action, $uuid)
@@ -902,6 +1051,30 @@ class UserAzureServer extends UserBase
         }
 
         return json(Tools::msg('1', '同步结果', '同步成功'));
+    }
+
+    private function waitVirtualMachinePowerState($server, $expected_status): void
+    {
+        $count = 0;
+        do {
+            sleep(2);
+            ++$count;
+            $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+            $status = $vm_status['statuses']['1']['code'] ?? 'null';
+        } while ($status !== $expected_status && $count < 120);
+
+        if ($status !== $expected_status) {
+            throw new \RuntimeException('等待虚拟机状态超时：' . $expected_status);
+        }
+    }
+
+    private static function exceptionMessage(\Exception $e): string
+    {
+        if (method_exists($e, 'getResponse') && $e->getResponse() !== null) {
+            return $e->getResponse()->getBody()->getContents();
+        }
+
+        return $e->getMessage();
     }
 
     public static function processGeneralData($array, $convert = false)

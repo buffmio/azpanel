@@ -45,6 +45,10 @@
                                         <i class="mdui-icon material-icons">settings_ethernet</i>
                                         <label>内部网络</label>
                                     </a>
+                                    <a href="#network-security-group" class="mdui-ripple">
+                                        <i class="mdui-icon material-icons">security</i>
+                                        <label>防火墙</label>
+                                    </a>
                                 </div>
                                 <!-- 虚拟机硬盘 -->
                                 <div id="vm-disk">
@@ -101,6 +105,13 @@
                                         <p>
                                             类型：<code>{$network_details.properties.ipConfigurations.0.properties.privateIPAllocationMethod}</code>
                                         </p>
+                                    </div>
+                                </div>
+                                <!-- 网络安全组 -->
+                                <div id="network-security-group">
+                                    <div class="mdui-typo mdui-m-t-2">
+                                        <p>名称：<code>{$security_group_name ?? 'null'}</code></p>
+                                        <p>规则：<code>{:count($security_rules)}</code></p>
                                     </div>
                                 </div>
                                 <!-- 系统镜像 -->
@@ -226,6 +237,149 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">restore</i>&nbsp;系统重装
+                            </p>
+                            <div class="mdui-typo">
+                                <p>重装会使用当前 Azure 镜像重新创建系统盘。成功启动后，原系统盘会被删除。</p>
+                                <div class="mdui-m-t-2">
+                                    <button onclick="reinstall(this)" data-id="{$server->vm_id}"
+                                        class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-red">重装
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="color: #3F51B5; font-size: 20px">防火墙规则</p>
+
+            <div class="mdui-typo">
+                <p>管理当前虚拟机绑定的 Azure NSG 安全组入站/出站规则。</p>
+            </div>
+
+            <div class="mdui-row">
+                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            {if $security_group_name == null}
+                            <div class="mdui-typo">
+                                <p>此虚拟机没有绑定网络安全组。</p>
+                            </div>
+                            {else}
+                            <div class="mdui-table-fluid">
+                                <table class="mdui-table mdui-table-hoverable">
+                                    <thead>
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>方向</th>
+                                        <th>动作</th>
+                                        <th>协议</th>
+                                        <th>来源</th>
+                                        <th>端口</th>
+                                        <th>优先级</th>
+                                        <th>操作</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {volist name="security_rules" id="rule"}
+                                    <tr>
+                                        <td>{$rule.name}</td>
+                                        <td>{$rule.properties.direction}</td>
+                                        <td>{$rule.properties.access}</td>
+                                        <td>{$rule.properties.protocol}</td>
+                                        <td>{$rule.properties.sourceAddressPrefix ?? '*'}</td>
+                                        <td>{$rule.properties.destinationPortRange ?? '*'}</td>
+                                        <td>{$rule.properties.priority}</td>
+                                        <td>
+                                            <button onclick="deleteNsgRule(this)" data-id="{$server->vm_id}" data-name="{$rule.name}"
+                                                class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-red">删除
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {/volist}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="mdui-row mdui-m-t-2">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">规则名称</label>
+                                        <input id="nsg_name" class="mdui-textfield-input" value="allow_custom" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    方向：<select id="nsg_direction" class="mdui-select" mdui-select>
+                                        <option value="Inbound">入站</option>
+                                        <option value="Outbound">出站</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    动作：<select id="nsg_access" class="mdui-select" mdui-select>
+                                        <option value="Allow">允许</option>
+                                        <option value="Deny">拒绝</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    协议：<select id="nsg_protocol" class="mdui-select" mdui-select>
+                                        <option value="Tcp">TCP</option>
+                                        <option value="Udp">UDP</option>
+                                        <option value="Icmp">ICMP</option>
+                                        <option value="*">全部</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">来源地址</label>
+                                        <input id="nsg_source_address" class="mdui-textfield-input" value="*" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">来源端口</label>
+                                        <input id="nsg_source_port" class="mdui-textfield-input" value="*" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">目标地址</label>
+                                        <input id="nsg_destination_address" class="mdui-textfield-input" value="*" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">目标端口</label>
+                                        <input id="nsg_destination_port" class="mdui-textfield-input" value="22" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">优先级</label>
+                                        <input id="nsg_priority" class="mdui-textfield-input" type="number" value="300" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                    <div class="mdui-textfield">
+                                        <label class="mdui-textfield-label">备注</label>
+                                        <input id="nsg_description" class="mdui-textfield-input" value="" />
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12 mdui-m-t-2">
+                                    <button onclick="saveNsgRule(this)" data-id="{$server->vm_id}"
+                                        class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">添加/更新
+                                    </button>
+                                </div>
+                            </div>
+                            {/if}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="mdui-container">
@@ -284,6 +438,20 @@
                 </div>
             </div>
 
+            <div class="mdui-container">
+                <div class="mdui-dialog" id="vm-network-security-group">
+                    <div class="mdui-dialog-content">
+                        <div class="mdui-dialog-title">网络安全组</div>
+                        <div class="mdui-dialog-content">
+                            <pre><code class="language-json">{$security_group_dialog}</code></pre>
+                        </div>
+                    </div>
+                    <div class="mdui-dialog-actions">
+                        <button class="mdui-btn mdui-ripple" mdui-dialog-close>关闭</button>
+                    </div>
+                </div>
+            </div>
+
             <p style="color: #3F51B5; font-size: 20px">原始数据</p>
 
             <button class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-color-indigo mdui-ripple"
@@ -304,6 +472,11 @@
             <button class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-color-indigo mdui-ripple"
                 mdui-dialog="{target: '#vm-network-detailss'}">
                 网络接口
+            </button>
+
+            <button class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-color-indigo mdui-ripple"
+                mdui-dialog="{target: '#vm-network-security-group'}">
+                防火墙
             </button>
 
             <div class="mdui-m-t-2"></div>
@@ -371,6 +544,42 @@
         );
     };
 
+    function reinstall(that) {
+        mdui.confirm('系统重装会重新创建系统盘。确认成功启动后，原系统盘会被删除，请先备份重要数据。', '重装确认',
+            function () {
+                var id = $(that).data('id');
+                var load = new mdui.alert('<p id=\"hint\">准备中</p><div class=\"mdui-progress\"><div class=\"mdui-progress-determinate\"></div></div>', '进行中');
+                var cycle = setInterval(getProgress, 2000);
+                uuid = guid();
+
+                $.ajax({
+                    method: 'PUT',
+                    url: "/user/server/azure/reinstall/" + id,
+                    data: {
+                        task_uuid: uuid,
+                    },
+                    dataType: "json",
+                    success: function (data) {
+                        load.close();
+                        clearInterval(cycle);
+                        mdui.alert(data.content, data.title);
+                        if (data.status == '1') {
+                            setTimeout("window.location = '/user/server/azure'", 1500);
+                        }
+                    },
+                    error: function () {
+                        clearInterval(cycle);
+                    }
+                });
+            },
+            function () { },
+            {
+                confirmText: "确定",
+                cancelText: "取消"
+            }
+        );
+    };
+
     function resize(that) {
         mdui.confirm('规格调整过程中需要重新启动虚拟机，请注意保存重要数据', '调整确认',
             function () {
@@ -388,6 +597,58 @@
                         mdui.alert(data.content, data.title);
                         if (data.status == '1') {
                             setTimeout("window.location = '/user/server/azure'", 1500);
+                        }
+                    }
+                });
+            },
+            function () { },
+            {
+                confirmText: "确定",
+                cancelText: "取消"
+            }
+        );
+    };
+
+    function saveNsgRule(that) {
+        var id = $(that).data('id');
+        $.ajax({
+            method: 'POST',
+            url: "/user/server/azure/nsg/" + id,
+            data: {
+                name: $('#nsg_name').val(),
+                direction: $('#nsg_direction').val(),
+                access: $('#nsg_access').val(),
+                protocol: $('#nsg_protocol').val(),
+                source_address: $('#nsg_source_address').val(),
+                source_port: $('#nsg_source_port').val(),
+                destination_address: $('#nsg_destination_address').val(),
+                destination_port: $('#nsg_destination_port').val(),
+                priority: $('#nsg_priority').val(),
+                description: $('#nsg_description').val(),
+            },
+            dataType: "json",
+            success: function (data) {
+                mdui.alert(data.content, data.title);
+                if (data.status == '1') {
+                    setTimeout("window.location.reload()", 1500);
+                }
+            }
+        });
+    };
+
+    function deleteNsgRule(that) {
+        mdui.confirm('确认删除此 NSG 规则么', '删除确认',
+            function () {
+                var id = $(that).data('id');
+                var name = $(that).data('name');
+                $.ajax({
+                    method: 'DELETE',
+                    url: "/user/server/azure/nsg/" + id + "/" + name,
+                    dataType: "json",
+                    success: function (data) {
+                        mdui.alert(data.content, data.title);
+                        if (data.status == '1') {
+                            setTimeout("window.location.reload()", 1500);
                         }
                     }
                 });

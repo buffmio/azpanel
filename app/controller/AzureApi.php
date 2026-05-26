@@ -155,6 +155,17 @@ class AzureApi extends BaseController
         return json_decode($result->getBody(), true); // array
     }
 
+    public static function getAzureVirtualMachine($account_id, $request_url)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com' . $request_url . '?api-version=2021-07-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
     public static function getAzureVirtualMachines($account_id)
     {
         // https://docs.microsoft.com/zh-cn/rest/api/compute/virtual-machines/list-all
@@ -330,6 +341,38 @@ class AzureApi extends BaseController
         ]);
         $resource_url = json_decode($result->getBody());
         return $resource_url->id;
+    }
+
+    public static function getNetworkSecurityGroup($account_id, $subscription_id, $resource_group_name, $name)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group_name . '/providers/Microsoft.Network/networkSecurityGroups/' . $name . '?api-version=2022-01-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function createOrUpdateNetworkSecurityRule($server, $security_group_name, array $rule)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $security_group_name . '/securityRules/' . $rule['name'] . '?api-version=2022-01-01';
+        $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => [
+                'properties' => $rule['properties'],
+            ],
+        ]);
+    }
+
+    public static function deleteNetworkSecurityRule($server, $security_group_name, $rule_name)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $security_group_name . '/securityRules/' . $rule_name . '?api-version=2022-01-01';
+        $client->delete($url, [
+            'headers' => self::getToken($server->account_id, true),
+        ]);
     }
 
     public static function createAzurePublicNetworkIpv4(
@@ -749,6 +792,79 @@ class AzureApi extends BaseController
         ]);
     }
 
+    public static function createOsDiskFromImage($server, $disk_name)
+    {
+        $vm_details = json_decode($server->vm_details, true);
+        $image = $vm_details['properties']['storageProfile']['imageReference'];
+        $disk_size = $vm_details['properties']['storageProfile']['osDisk']['diskSizeGB'] ?? $server->disk_size;
+        $storage_account_type = $vm_details['properties']['storageProfile']['osDisk']['managedDisk']['storageAccountType'] ?? 'Premium_LRS';
+        $image_version = $image['exactVersion'] ?? $image['version'];
+
+        $body = [
+            'location' => $server->location,
+            'sku' => [
+                'name' => $storage_account_type,
+            ],
+            'properties' => [
+                'creationData' => [
+                    'createOption' => 'FromImage',
+                    'imageReference' => [
+                        'id' => '/Subscriptions/' . $server->at_subscription_id . '/Providers/Microsoft.Compute/Locations/' . $server->location . '/Publishers/' . $image['publisher'] . '/ArtifactTypes/VMImage/Offers/' . $server->os_offer . '/Skus/' . $server->os_sku . '/Versions/' . $image_version,
+                    ],
+                ],
+                'diskSizeGB' => $disk_size,
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+
+        $disk = json_decode($result->getBody());
+        return $disk->id;
+    }
+
+    public static function attachOsDiskToVirtualMachine($server, $disk_id, $disk_name)
+    {
+        $vm_details = json_decode($server->vm_details, true);
+        $os_disk = $vm_details['properties']['storageProfile']['osDisk'];
+
+        $body = [
+            'location' => $server->location,
+            'properties' => [
+                'storageProfile' => [
+                    'osDisk' => [
+                        'name' => $disk_name,
+                        'createOption' => 'Attach',
+                        'osType' => $os_disk['osType'],
+                        'managedDisk' => [
+                            'id' => $disk_id,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com' . $server->request_url . '?api-version=2021-07-01';
+        $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+    }
+
+    public static function deleteDisk($server, $disk_name)
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
+        $client->delete($url, [
+            'headers' => self::getToken($server->account_id, true),
+        ]);
+    }
+
     public static function getQuota($account, $location)
     {
         // https://docs.microsoft.com/zh-cn/rest/api/reserved-vm-instances/quota/list
@@ -770,6 +886,18 @@ class AzureApi extends BaseController
         $vm_details = json_decode($server->vm_details, true);
         $disk_name = $vm_details['properties']['storageProfile']['osDisk']['name'];
 
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/Providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2020-12-01';
+
+        $client = new Client();
+        $result = $client->get($url, [
+            'headers' => self::getToken($server->account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function getDisksByName($server, $disk_name)
+    {
         $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/Providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2020-12-01';
 
         $client = new Client();

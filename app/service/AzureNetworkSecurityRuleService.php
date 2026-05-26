@@ -4,6 +4,18 @@ namespace app\service;
 
 class AzureNetworkSecurityRuleService
 {
+    public static function networkSecurityGroupNameFromId(?string $id): ?string
+    {
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        $parts = explode('/', trim($id, '/'));
+        $name = end($parts);
+
+        return $name === false || $name === '' ? null : $name;
+    }
+
     public static function presetRules(string $preset, bool $isWindows): array
     {
         $rules = [];
