@@ -28,7 +28,8 @@
 1. nginx。
 2. MySQL 或 MariaDB。
 3. 已创建的数据库。
-4. 已导入的 `database/azure.sql` 和 `database/config.sql`。
+
+容器启动时会自动等待数据库连接。如果数据库为空，会自动导入 `database/azure.sql` 和 `database/config.sql`，随后固定执行 `php /app/think migrate:run` 和 `php /app/think seed:run`。
 
 ### 构建镜像
 
@@ -67,7 +68,7 @@ docker run -d --name azpanel \
   azpanel:local
 ```
 
-容器启动后会同时运行 `php-fpm` 和 supercronic。固定定时任务位于 `docker/supercronic.cron`。
+容器启动后会先完成数据库初始化，再运行 `php-fpm` 和 supercronic。固定定时任务位于 `docker/supercronic.cron`。
 
 ### nginx
 
