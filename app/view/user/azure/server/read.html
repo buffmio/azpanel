@@ -1,5 +1,52 @@
 {include file="../app/view/user/header.html" title="Azure 虚拟机详情" /}
 
+<style>
+    .azpanel-summary-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 16px 0 12px;
+    }
+
+    .azpanel-summary-item {
+        min-width: 180px;
+        padding: 10px 14px;
+        box-sizing: border-box;
+        border: 1px solid rgba(63, 81, 181, 0.12);
+        background: rgba(63, 81, 181, 0.04);
+    }
+
+    .azpanel-summary-item-label {
+        margin: 0 0 6px;
+        color: rgba(0, 0, 0, 0.54);
+        font-size: 12px;
+    }
+
+    .azpanel-summary-item-value {
+        margin: 0;
+        word-break: break-all;
+    }
+
+    .azpanel-reinstall-note {
+        margin-top: 8px;
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.54);
+    }
+
+    .azpanel-nsg-table {
+        overflow-x: auto;
+        margin-top: 8px;
+    }
+
+    .azpanel-nsg-select {
+        margin-top: 12px;
+    }
+
+    .azpanel-nsg-action {
+        margin-top: 12px;
+    }
+</style>
+
 <div class="mdui-container-fluid">
     <div class="mdui-row">
         <div
@@ -148,7 +195,7 @@
             </div>
 
             <div class="mdui-row">
-                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                <div class="mdui-col-md-4 mdui-col-sm-12 mdui-m-t-2">
                     <div class="mdui-card" style="overflow: visible">
                         <div class="mdui-card-content">
                             <p style="color: #3F51B5; font-size: 18px">
@@ -185,7 +232,7 @@
                     </div>
                 </div>
 
-                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                <div class="mdui-col-md-4 mdui-col-sm-12 mdui-m-t-2">
                     <div class="mdui-card" style="overflow: visible">
                         <div class="mdui-card-content">
                             <p style="color: #3F51B5; font-size: 18px">
@@ -213,7 +260,7 @@
                     </div>
                 </div>
 
-                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                <div class="mdui-col-md-4 mdui-col-sm-12 mdui-m-t-2">
                     <div class="mdui-card" style="overflow: visible">
                         <div class="mdui-card-content">
                             <p style="color: #3F51B5; font-size: 18px">
@@ -238,7 +285,7 @@
                     </div>
                 </div>
 
-                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
                     <div class="mdui-card" style="overflow: visible">
                         <div class="mdui-card-content">
                             <p style="color: #3F51B5; font-size: 18px">
@@ -248,7 +295,7 @@
                                 <p>保留当前网卡、公网 IP 和安全组，成功启动后自动删除原系统盘。</p>
                             </div>
                             <div class="mdui-row">
-                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
                                     <div class="mdui-m-t-2">
                                         镜像：<select id="reinstall_image" class="mdui-select" mdui-select>
                                             {volist name="images" id="image"}
@@ -257,7 +304,7 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
                                     <div class="mdui-m-t-2">
                                         密钥：<select id="reinstall_ssh_key" class="mdui-select" mdui-select>
                                             <option value="0">不使用</option>
@@ -267,14 +314,14 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">用户名</label>
                                         <input class="mdui-textfield-input" id="reinstall_user"
                                             value="{$reinstall_defaults.user}">
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-6 mdui-col-sm-12">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">密码</label>
                                         <input class="mdui-textfield-input" id="reinstall_passwd"
@@ -282,7 +329,7 @@
                                     </div>
                                 </div>
                                 <div class="mdui-col-md-12 mdui-col-sm-12">
-                                    <div class="mdui-typo" style="font-size: 12px; color: rgba(0, 0, 0, 0.54);">
+                                    <div class="mdui-typo azpanel-reinstall-note">
                                         <p>用户名和密码默认读取个人偏好。Windows 镜像请使用密码登录，Linux 镜像可选 SSH 密钥。</p>
                                     </div>
                                 </div>
@@ -315,11 +362,17 @@
                                 <p>此虚拟机没有绑定网络安全组。</p>
                             </div>
                             {else}
-                            <div class="mdui-typo">
-                                <p>安全组：<code>{$security_group_name}</code></p>
-                                <p>规则数：<code>{:count($security_rules)}</code></p>
+                            <div class="azpanel-summary-grid">
+                                <div class="azpanel-summary-item">
+                                    <p class="azpanel-summary-item-label">安全组</p>
+                                    <p class="azpanel-summary-item-value"><code>{$security_group_name}</code></p>
+                                </div>
+                                <div class="azpanel-summary-item">
+                                    <p class="azpanel-summary-item-label">规则数</p>
+                                    <p class="azpanel-summary-item-value"><code>{:count($security_rules)}</code></p>
+                                </div>
                             </div>
-                            <div class="mdui-table-fluid">
+                            <div class="mdui-table-fluid azpanel-nsg-table">
                                 <table class="mdui-table mdui-table-hoverable">
                                     <thead>
                                     <tr>
@@ -382,7 +435,7 @@
                                     </div>
                                 </div>
                                 <div class="mdui-col-md-4 mdui-col-sm-12">
-                                    <div class="mdui-m-t-2">
+                                    <div class="azpanel-nsg-select">
                                         方向：<select id="nsg_direction" class="mdui-select" mdui-select>
                                             <option value="Inbound">入站</option>
                                             <option value="Outbound">出站</option>
@@ -390,7 +443,7 @@
                                     </div>
                                 </div>
                                 <div class="mdui-col-md-4 mdui-col-sm-12">
-                                    <div class="mdui-m-t-2">
+                                    <div class="azpanel-nsg-select">
                                         动作：<select id="nsg_access" class="mdui-select" mdui-select>
                                             <option value="Allow">允许</option>
                                             <option value="Deny">拒绝</option>
@@ -398,7 +451,7 @@
                                     </div>
                                 </div>
                                 <div class="mdui-col-md-4 mdui-col-sm-12">
-                                    <div class="mdui-m-t-2">
+                                    <div class="azpanel-nsg-select">
                                         协议：<select id="nsg_protocol" class="mdui-select" mdui-select>
                                             <option value="Tcp">TCP</option>
                                             <option value="Udp">UDP</option>
@@ -437,16 +490,18 @@
                                         <input id="nsg_priority" class="mdui-textfield-input" type="number" value="300" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-9 mdui-col-sm-12">
+                                <div class="mdui-col-md-8 mdui-col-sm-12">
                                     <div class="mdui-textfield">
                                         <label class="mdui-textfield-label">备注</label>
                                         <input id="nsg_description" class="mdui-textfield-input" value="" />
                                     </div>
                                 </div>
-                                <div class="mdui-col-md-3 mdui-col-sm-12 mdui-m-t-2">
-                                    <button onclick="saveNsgRule(this)" data-id="{$server->vm_id}"
-                                        class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">添加或更新
-                                    </button>
+                                <div class="mdui-col-md-4 mdui-col-sm-12">
+                                    <div class="azpanel-nsg-action">
+                                        <button onclick="saveNsgRule(this)" data-id="{$server->vm_id}"
+                                            class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">添加或更新
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
