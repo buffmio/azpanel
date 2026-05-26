@@ -201,12 +201,6 @@ class AzureList
                 'cost' => 0.0094 * 720,
                 'acc' => false,
             ],
-            'Standard_B2pts_v2' => [
-                'cpu' => '2',
-                'memory' => '1',
-                'cost' => 0.0094 * 720,
-                'acc' => false,
-            ],
             'Standard_B1ms' => [
                 'cpu' => '1',
                 'memory' => '2',

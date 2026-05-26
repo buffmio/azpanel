@@ -296,6 +296,12 @@ class UserAzureServer extends UserBase
                         return json(Tools::msg('0', '创建失败', '此规格虚拟机不可使用镜像列表中包含 gen2 关键词的选项'));
                     }
                 }
+                if (self::resourceSkuCapability($limit, 'CpuArchitectureType') === 'Arm64') {
+                    UserTask::end($task_id, true, json_encode(
+                        ['msg' => 'The selected virtual machine size uses Arm64 architecture, which is not compatible with the current image list.']
+                    ), true);
+                    return json(Tools::msg('0', '创建失败', '当前镜像列表不支持 Arm64 规格，请更换其他型号'));
+                }
                 $size_family = $limit['family'];
                 $single_size_core = $limit['capabilities']['2']['value'];
             }
@@ -1164,6 +1170,17 @@ class UserAzureServer extends UserBase
         return null;
     }
 
+    private static function resourceSkuCapability(array $limit, string $name): ?string
+    {
+        foreach ($limit['capabilities'] ?? [] as $capability) {
+            if (($capability['name'] ?? null) === $name) {
+                return (string) ($capability['value'] ?? '');
+            }
+        }
+
+        return null;
+    }
+
     public static function processGeneralData($array, $convert = false)
     {
         $text = '';
@@ -1305,11 +1322,10 @@ class UserAzureServer extends UserBase
 
         foreach ($limits['value'] as $limit) {
             if ($limit['resourceType'] === 'virtualMachines') {
-                // 若虚拟机规格中包含关键字p 则代表是arm64处理器 与默认镜像不兼容 因此需要过滤掉
-                if (!isset($limit['restrictions']['0']['reasonCode']) && !Str::contains($limit['name'], 'p')) {
+                if (!isset($limit['restrictions']['0']['reasonCode']) && self::resourceSkuCapability($limit, 'CpuArchitectureType') !== 'Arm64') {
                     $size = [
                         'name' => $limit['name'],
-                        'size_name' => $limit['name'] . ' => ' . $limit['capabilities']['2']['value'] . 'C_' . $limit['capabilities']['5']['value'] . 'GB',
+                        'size_name' => $limit['name'] . ' => ' . self::resourceSkuCapability($limit, 'vCPUs') . 'C_' . self::resourceSkuCapability($limit, 'MemoryGB') . 'GB',
                     ];
                     array_push($set, $size);
                 }
