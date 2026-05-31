@@ -1,5 +1,7 @@
 /.idea
 /.vscode
+/.agents
+/.codex
 /vendor
 *.log
 .env
