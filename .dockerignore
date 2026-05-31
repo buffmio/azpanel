@@ -5,4 +5,5 @@ runtime/*
 vendor
 *.log
 .env
-
+.deploy.env
+docker/nginx-generated.conf

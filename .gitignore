@@ -5,4 +5,6 @@
 /vendor
 *.log
 .env
+.deploy.env
+/docker/nginx-generated.conf
 composer.lock

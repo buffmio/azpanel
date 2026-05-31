@@ -19,6 +19,52 @@
 
 [https://github.com/azpanel/azpanel/wiki/bt.cn](https://github.com/azpanel/azpanel/wiki/bt.cn)
 
+## 全套 Docker 部署
+
+全套部署会启动三个服务：
+
+1. MySQL。
+2. AzPanel PHP-FPM 应用容器。
+3. nginx。
+
+服务器需要已安装 Docker 和 Docker Compose。首次部署或更新代码时运行：
+
+```bash
+./deploy.sh
+```
+
+脚本会交互式询问 HTTP 端口、是否启用 HTTPS、域名、邮箱、数据库配置和是否执行 `git pull`。
+
+默认把 nginx 暴露到宿主机 `80` 端口。指定端口：
+
+```bash
+./deploy.sh --port 80
+```
+
+启用 HTTPS 时脚本会通过 certbot 自动申请 Let's Encrypt 证书，并生成 nginx HTTPS 配置：
+
+```bash
+./deploy.sh --https --domain example.com --email admin@example.com
+```
+
+启用 HTTPS 前，请确认域名已解析到服务器，并且公网 `80` 端口可以访问到本机 nginx。Let's Encrypt 的 HTTP-01 校验依赖这个条件。
+
+脚本会在缺少配置时自动生成 `.env` 和 `.deploy.env`，其中 `.deploy.env` 保存 Docker Compose 使用的数据库密码和端口配置，已加入 Git 忽略。已有 `.env` 时脚本不会覆盖它。
+
+如果要把已有 `.env` 改为使用全套部署内置的 MySQL 服务：
+
+```bash
+./deploy.sh --force-env
+```
+
+常用命令：
+
+```bash
+docker compose --env-file .deploy.env ps
+docker compose --env-file .deploy.env logs -f
+docker compose --env-file .deploy.env down
+```
+
 ## 单容器部署
 
 本项目提供 Panel 应用容器。容器只包含 PHP-FPM、PHP CLI、Composer 依赖、项目代码和 supercronic 固定定时任务，不包含 nginx 和 MySQL/MariaDB。
