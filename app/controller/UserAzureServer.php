@@ -14,6 +14,7 @@ use app\model\ControlRule;
 use app\model\SshKey;
 use app\model\Traffic;
 use app\model\User;
+use app\service\AzureChartDateRangeService;
 use app\service\AzureNetworkSecurityRuleService;
 use app\service\ReinstallProfileService;
 use Carbon\Carbon;
@@ -639,7 +640,7 @@ class UserAzureServer extends UserBase
         View::assign('network_details', $network_details);
         View::assign('instance_dialog', $instance_dialog);
         View::assign('instance_details', $instance_details);
-        View::assign('security_group_name', $security_group_name);
+        View::assign('has_security_group', $security_group_name !== null);
         View::assign('security_rules', $security_rules);
         View::assign('security_group_dialog', $security_group_dialog);
         return View::fetch('../app/view/user/azure/server/read.html');
@@ -1225,21 +1226,16 @@ class UserAzureServer extends UserBase
 
     public function chart($id)
     {
-        $gap = (int) input('gap');
+        $range = AzureChartDateRangeService::fromGap(input('gap', null));
         $server = AzureServer::find($id);
         if ($server === null || $server->user_id !== (int) session('user_id')) {
             return View::fetch('../app/view/user/reject.html');
         }
 
-        if ($gap === '') {
+        if ($range['is_default']) {
             $statistics = AzureApi::getVirtualMachineStatistics($server);
         } else {
-            $timestamp = strtotime(Carbon::parse("+{$gap} days ago")->toDateTimeString());
-            $start_time = date('Y-m-d\T 16:00:00\Z', $timestamp);
-            $stop_time = date('Y-m-d\T 16:00:00\Z', $timestamp + 86400);
-            $chart_day = date('Y-m-d', $timestamp + 86400);
-
-            $statistics = AzureApi::getVirtualMachineStatistics($server, $start_time, $stop_time);
+            $statistics = AzureApi::getVirtualMachineStatistics($server, $range['start_time'], $range['end_time']);
         }
 
         //dump($statistics['value']);
@@ -1263,7 +1259,7 @@ class UserAzureServer extends UserBase
         }
 
         $traffic_usage = Traffic::where('uuid', $server->vm_id)->order('id', 'desc')->select();
-        $chart_day = $chart_day ?? null;
+        $chart_day = $range['chart_day'];
 
         $total_in_traffic_usage = 0;
         $total_out_traffic_usage = 0;

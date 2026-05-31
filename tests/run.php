@@ -3,11 +3,13 @@
 $tests = [
     __DIR__ . '/unit/AzureNetworkSecurityRuleServiceTest.php',
     __DIR__ . '/unit/ReinstallProfileServiceTest.php',
+    __DIR__ . '/unit/AzureChartDateRangeServiceTest.php',
 ];
 
 $serviceFiles = [
     __DIR__ . '/../app/service/AzureNetworkSecurityRuleService.php',
     __DIR__ . '/../app/service/ReinstallProfileService.php',
+    __DIR__ . '/../app/service/AzureChartDateRangeService.php',
 ];
 
 $failures = 0;
