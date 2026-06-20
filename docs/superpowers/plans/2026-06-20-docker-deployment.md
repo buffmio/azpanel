@@ -592,6 +592,8 @@ run_migrations() {
 
 install_dependencies() {
     $COMPOSE exec -T app composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
+    $COMPOSE exec -T app php think service:discover
+    $COMPOSE exec -T app php think vendor:publish
 }
 
 create_admin() {
