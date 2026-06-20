@@ -1296,8 +1296,14 @@ class UserAzureServer extends UserBase
             $server->updated_at = time();
             $server->save();
 
-            UserTask::update($task_id, 6 / 7, '正在清理旧系统盘');
-            AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $original_disk_name);
+            try {
+                UserTask::update($task_id, 6 / 7, '正在清理旧系统盘');
+                AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $original_disk_name);
+            } catch (\Throwable $deleteDiskEx) {
+                $warnMsg = '重装系统已成功，但清理旧系统盘失败，请手动到 Azure 控制台清理旧系统盘: ' . $original_disk_name;
+                UserTask::end($task_id, false, ['msg' => $warnMsg]);
+                return json(Tools::msg('1', '重装警告', $warnMsg));
+            }
         } catch (\Throwable $e) {
             $error = $this->azureErrorMessage($e);
             if ($replacement_attached) {
