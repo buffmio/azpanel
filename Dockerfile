@@ -43,7 +43,6 @@ COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/cron/azpanel /etc/cron.d/azpanel
 
 RUN chmod 0644 /etc/cron.d/azpanel \
-    && crontab /etc/cron.d/azpanel \
     && mkdir -p runtime storage backups \
     && chown -R www-data:www-data ${APP_HOME}
 

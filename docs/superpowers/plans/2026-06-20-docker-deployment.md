@@ -172,7 +172,6 @@ COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/cron/azpanel /etc/cron.d/azpanel
 
 RUN chmod 0644 /etc/cron.d/azpanel \
-    && crontab /etc/cron.d/azpanel \
     && mkdir -p runtime storage backups \
     && chown -R www-data:www-data ${APP_HOME}
 
@@ -341,7 +340,6 @@ services:
       - ./:/var/www/html
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/azpanel.ini:ro
       - ./docker/supervisor/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf:ro
-      - ./docker/cron/azpanel:/etc/cron.d/azpanel:ro
     depends_on:
       db:
         condition: service_healthy
