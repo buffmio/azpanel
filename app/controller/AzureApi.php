@@ -1076,6 +1076,9 @@ class AzureApi extends BaseController
         $os_type,
         array $network_interfaces
     ): array {
+        $parts = explode('/', $os_disk_id);
+        $disk_name = end($parts);
+
         $body = [
             'location' => $location,
             'properties' => [
@@ -1084,7 +1087,7 @@ class AzureApi extends BaseController
                 ],
                 'storageProfile' => [
                     'osDisk' => [
-                        'name' => $vm_name . '_osDisk',
+                        'name' => $disk_name,
                         'managedDisk' => [
                             'id' => $os_disk_id,
                         ],
