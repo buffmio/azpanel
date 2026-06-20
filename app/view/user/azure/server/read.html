@@ -282,7 +282,7 @@
                             </div>
                             <div class="mdui-textfield mdui-textfield-floating-label">
                                 <label class="mdui-textfield-label">用户名</label>
-                                <input class="mdui-textfield-input" id="credential_username">
+                                <input class="mdui-textfield-input" id="credential_username" value="{$vm_details.properties.osProfile.adminUsername ?? ''}" {if !empty($vm_details.properties.osProfile.adminUsername)}readonly{/if}>
                             </div>
                             <div class="mdui-m-t-2">
                                 凭据：<select id="credential_mode" class="mdui-select" mdui-select>
@@ -314,7 +314,6 @@
                             <p style="color: #3F51B5; font-size: 18px">
                                 <i class="mdui-icon material-icons">security</i>&nbsp;防火墙规则
                             </p>
-                            <button onclick="loadFirewall(this)" data-id="{$server->vm_id}" class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">加载规则</button>
                             <div class="mdui-row mdui-m-t-2">
                                 <input type="hidden" id="firewall_editing_name">
                                 <div class="mdui-col-md-3 mdui-col-sm-12">
@@ -610,6 +609,7 @@
     $("#new_tier").prop('value', '{$vm_disk_tier}');
     $("#traffic_rule").prop('value', '{$server->rule}');
     $("#new_size option[value='{$server->vm_size}']").attr('disabled', 'disabled');
+    loadFirewall('{$server->vm_id}');
 
     function toggleCredentialFields(prefix) {
         let mode = $('#' + prefix + '_credential_mode').length ? $('#' + prefix + '_credential_mode').val() : $('#' + prefix + '_mode').val();
@@ -669,8 +669,9 @@
     }
 
     function credential(that) {
-        let id = $(that).data('id');
-        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+        let btn = $(that);
+        let id = btn.data('id');
+        btn.prop('disabled', true).addClass('mdui-btn-disabled');
         $.ajax({
             method: 'PUT',
             url: '/user/server/azure/credential/' + id,
@@ -683,29 +684,93 @@
             },
             dataType: 'json',
             success: function (data) {
-                load.close();
+                btn.prop('disabled', false).removeClass('mdui-btn-disabled');
                 mdui.alert(data.content, data.title);
             },
             error: function () {
-                load.close();
+                btn.prop('disabled', false).removeClass('mdui-btn-disabled');
             }
         });
     }
 
-    function loadFirewall(that) {
+    function formatRuleField(primary, secondaryArray, fallback) {
+        fallback = fallback || '*';
+        if (primary !== undefined && primary !== null && primary !== '') {
+            return primary;
+        }
+        if (Array.isArray(secondaryArray) && secondaryArray.length > 0) {
+            return secondaryArray.join(',');
+        }
+        return fallback;
+    }
+
+    function finalizeFirewallRefreshFailure(message) {
+        $('#firewall_poll_notice').remove();
+        $('#firewall_rules').prepend('<tr><td colspan="10" style="text-align: center; color: #ff9800; background-color: #fff3e0; font-weight: bold; font-size: 13px;">' + message + '</td></tr>');
+        $('.firewall-action-btn').prop('disabled', false).removeClass('mdui-btn-disabled');
+        $('[onclick^="saveFirewallRule"]').prop('disabled', false).removeClass('mdui-btn-disabled');
+    }
+
+    function loadFirewall(that, options) {
+        options = options || {};
+        let silent = options.silent || false;
         let id = typeof that === 'string' ? that : $(that).data('id');
-        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+
+        let $rulesBody = $('#firewall_rules');
+        if (!silent) {
+            $rulesBody.html('<tr><td colspan="10" style="text-align: center; color: #757575;">正在加载规则...</td></tr>');
+        }
+
         $.ajax({
             method: 'GET',
             url: '/user/server/azure/firewall/' + id,
             dataType: 'json',
             success: function (data) {
-                load.close();
                 if (data.status == '0') {
-                    mdui.alert(data.content, data.title);
+                    if (silent) {
+                        finalizeFirewallRefreshFailure('规则操作已提交，但获取列表失败：' + data.content + '，请稍后刷新重试。');
+                    } else {
+                        mdui.alert(data.content, data.title);
+                        $rulesBody.html('<tr><td colspan="10" style="text-align: center; color: #d32f2f;">加载规则失败：' + data.content + '</td></tr>');
+                    }
                     return;
                 }
-                $('#firewall_rules').empty();
+
+                // Verification of target rule configuration (for polling)
+                if (options.targetRuleName) {
+                    let rulesList = data.rules || [];
+                    let found = false;
+                    for (let i = 0; i < rulesList.length; i++) {
+                        if (rulesList[i].name === options.targetRuleName) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    let conditionMet = (options.expectExists === found);
+                    let pollLimit = 6;
+                    let currentPoll = options.pollCount || 0;
+                    if (!conditionMet) {
+                        if (currentPoll < pollLimit) {
+                            if ($('#firewall_poll_notice').length === 0) {
+                                $('.mdui-table-fluid-fixed').before('<div id="firewall_poll_notice" style="color: #ff9800; padding: 8px; text-align: center;">规则已提交，正在同步云端状态 (' + (currentPoll + 1) + '/' + pollLimit + ')...</div>');
+                            } else {
+                                $('#firewall_poll_notice').text('规则已提交，正在同步云端状态 (' + (currentPoll + 1) + '/' + pollLimit + ')...');
+                            }
+                            setTimeout(function() {
+                                options.pollCount = currentPoll + 1;
+                                loadFirewall(id, options);
+                            }, 2000);
+                            return;
+                        } else {
+                            finalizeFirewallRefreshFailure('规则操作已提交，但云端数据同步超时未变，请稍后自行重试或刷新物理列表。');
+                            return;
+                        }
+                    } else {
+                        $('#firewall_poll_notice').remove();
+                    }
+                }
+
+                $rulesBody.empty();
 
                 // 渲染自定义规则
                 if (data.rules) {
@@ -714,12 +779,18 @@
                         var encoded = encodeURIComponent(JSON.stringify(rule));
                         var actions = '';
                         if (rule.properties.priority >= 100 && rule.properties.priority <= 4096) {
-                            actions = '<button class="mdui-btn mdui-btn-dense" onclick="editFirewallRule(\'' + encoded + '\')">编辑</button>' +
-                                      '<button class="mdui-btn mdui-btn-dense" onclick="deleteFirewallRule(\'' + id + '\', \'' + rule.name + '\')">删除</button>';
+                            actions = '<button class="mdui-btn mdui-btn-dense firewall-action-btn" onclick="editFirewallRule(\'' + encoded + '\')">编辑</button>' +
+                                      '<button class="mdui-btn mdui-btn-dense firewall-action-btn" onclick="deleteFirewallRule(this, \'' + id + '\', \'' + encodeURIComponent(rule.name) + '\')">删除</button>';
                         } else {
                             actions = '<button class="mdui-btn mdui-btn-dense" disabled>只读</button>';
                         }
-                        $('#firewall_rules').append('<tr><td>' + rule.name + '</td><td>' + rule.properties.direction + '</td><td>' + rule.properties.protocol + '</td><td>' + rule.properties.access + '</td><td>' + rule.properties.priority + '</td><td>' + rule.properties.sourceAddressPrefix + '</td><td>' + rule.properties.sourcePortRange + '</td><td>' + rule.properties.destinationAddressPrefix + '</td><td>' + rule.properties.destinationPortRange + '</td><td>' + actions + '</td></tr>');
+
+                        let srcAddr = formatRuleField(rule.properties.sourceAddressPrefix, rule.properties.sourceAddressPrefixes);
+                        let srcPort = formatRuleField(rule.properties.sourcePortRange, rule.properties.sourcePortRanges);
+                        let destAddr = formatRuleField(rule.properties.destinationAddressPrefix, rule.properties.destinationAddressPrefixes);
+                        let destPort = formatRuleField(rule.properties.destinationPortRange, rule.properties.destinationPortRanges);
+
+                        $rulesBody.append('<tr><td>' + rule.name + '</td><td>' + rule.properties.direction + '</td><td>' + rule.properties.protocol + '</td><td>' + rule.properties.access + '</td><td>' + rule.properties.priority + '</td><td>' + srcAddr + '</td><td>' + srcPort + '</td><td>' + destAddr + '</td><td>' + destPort + '</td><td>' + actions + '</td></tr>');
                     }
                 }
 
@@ -728,19 +799,30 @@
                     for (var j = 0; j < data.default_rules.length; j++) {
                         var defRule = data.default_rules[j];
                         var defActions = '<button class="mdui-btn mdui-btn-dense" disabled>默认只读</button>';
-                        $('#firewall_rules').append('<tr style="opacity: 0.6; background-color: #f5f5f5;"><td>' + defRule.name + '</td><td>' + defRule.properties.direction + '</td><td>' + defRule.properties.protocol + '</td><td>' + defRule.properties.access + '</td><td>' + defRule.properties.priority + '</td><td>' + (defRule.properties.sourceAddressPrefix || defRule.properties.sourceAddressPrefixes.join(',')) + '</td><td>' + (defRule.properties.sourcePortRange || defRule.properties.sourcePortRanges.join(',')) + '</td><td>' + (defRule.properties.destinationAddressPrefix || defRule.properties.destinationAddressPrefixes.join(',')) + '</td><td>' + (defRule.properties.destinationPortRange || defRule.properties.destinationPortRanges.join(',')) + '</td><td>' + defActions + '</td></tr>');
+
+                        let srcAddr = formatRuleField(defRule.properties.sourceAddressPrefix, defRule.properties.sourceAddressPrefixes);
+                        let srcPort = formatRuleField(defRule.properties.sourcePortRange, defRule.properties.sourcePortRanges);
+                        let destAddr = formatRuleField(defRule.properties.destinationAddressPrefix, defRule.properties.destinationAddressPrefixes);
+                        let destPort = formatRuleField(defRule.properties.destinationPortRange, defRule.properties.destinationPortRanges);
+
+                        $rulesBody.append('<tr style="opacity: 0.6; background-color: #f5f5f5;"><td>' + defRule.name + '</td><td>' + defRule.properties.direction + '</td><td>' + defRule.properties.protocol + '</td><td>' + defRule.properties.access + '</td><td>' + defRule.properties.priority + '</td><td>' + srcAddr + '</td><td>' + srcPort + '</td><td>' + destAddr + '</td><td>' + destPort + '</td><td>' + defActions + '</td></tr>');
                     }
                 }
             },
             error: function() {
-                load.close();
+                if (silent) {
+                    finalizeFirewallRefreshFailure('规则操作已提交，但加载最新列表时网络错误，请稍后刷新重试。');
+                } else {
+                    $('#firewall_poll_notice').remove();
+                    $rulesBody.html('<tr><td colspan="10" style="text-align: center; color: #d32f2f;">加载规则失败，请重试。</td></tr>');
+                }
             }
         });
     }
 
     function resetFirewallForm() {
         $('#firewall_editing_name').val('');
-        $('#firewall_name').val('');
+        $('#firewall_name').val('').prop('readonly', false);
         $('#firewall_direction').val('Inbound');
         $('#firewall_protocol').val('Tcp');
         $('#firewall_access').val('Allow');
@@ -755,7 +837,7 @@
     function editFirewallRule(encodedRule) {
         var rule = JSON.parse(decodeURIComponent(encodedRule));
         $('#firewall_editing_name').val(rule.name);
-        $('#firewall_name').val(rule.name);
+        $('#firewall_name').val(rule.name).prop('readonly', true);
         $('#firewall_direction').val(rule.properties.direction);
         $('#firewall_protocol').val(rule.properties.protocol);
         $('#firewall_access').val(rule.properties.access);
@@ -768,7 +850,8 @@
     }
 
     function saveFirewallRule(that) {
-        let id = $(that).data('id');
+        let btn = $(that);
+        let id = btn.data('id');
         let name = $('#firewall_name').val();
         let prio = parseInt($('#firewall_priority').val());
 
@@ -783,8 +866,9 @@
 
         let editing = $('#firewall_editing_name').val();
         let method = editing === '' ? 'POST' : 'PUT';
-        let url = '/user/server/azure/firewall/' + id + (editing === '' ? '' : '/' + editing);
-        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+        let url = '/user/server/azure/firewall/' + id + (editing === '' ? '' : '/' + encodeURIComponent(editing));
+
+        btn.prop('disabled', true).addClass('mdui-btn-disabled');
         $.ajax({
             method: method,
             url: url,
@@ -802,35 +886,38 @@
             },
             dataType: 'json',
             success: function (data) {
-                load.close();
+                btn.prop('disabled', false).removeClass('mdui-btn-disabled');
                 mdui.alert(data.content, data.title);
                 if (data.status == '1') {
                     resetFirewallForm();
-                    loadFirewall(id);
+                    loadFirewall(id, { silent: true, pollCount: 0, targetRuleName: name, expectExists: true });
                 }
             },
             error: function () {
-                load.close();
+                btn.prop('disabled', false).removeClass('mdui-btn-disabled');
             }
         });
     }
 
-    function deleteFirewallRule(id, name) {
+    function deleteFirewallRule(btn, id, encodedName) {
+        let name = decodeURIComponent(encodedName);
         mdui.confirm('确认删除规则 ' + name + '？', '删除确认', function () {
-            var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+            let $btn = $(btn);
+            $btn.prop('disabled', true).addClass('mdui-btn-disabled');
             $.ajax({
                 method: 'DELETE',
-                url: '/user/server/azure/firewall/' + id + '/' + name,
+                url: '/user/server/azure/firewall/' + id + '/' + encodedName,
                 dataType: 'json',
                 success: function (data) {
-                    load.close();
                     mdui.alert(data.content, data.title);
                     if (data.status == '1') {
-                        loadFirewall(id);
+                        loadFirewall(id, { silent: true, pollCount: 0, targetRuleName: name, expectExists: false });
+                    } else {
+                        $btn.prop('disabled', false).removeClass('mdui-btn-disabled');
                     }
                 },
                 error: function () {
-                    load.close();
+                    $btn.prop('disabled', false).removeClass('mdui-btn-disabled');
                 }
             });
         }, function () {}, { confirmText: '确定', cancelText: '取消' });

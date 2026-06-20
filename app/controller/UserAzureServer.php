@@ -1407,7 +1407,6 @@ class UserAzureServer extends UserBase
         }
 
         $os_type = input('os_type/s');
-        $username = input('username/s');
         $password = input('password/s');
         $credential_mode = input('credential_mode/s', 'password');
         $ssh_key_id = (int) input('ssh_key/d');
@@ -1420,15 +1419,52 @@ class UserAzureServer extends UserBase
             return json(Tools::msg('0', '重置失败', 'Windows 不支持 SSH 密钥模式'));
         }
 
-        if ($error = $this->validateVmUsername($username)) {
-            return json(Tools::msg('0', '重置失败', $error));
+        $server_vm_details = json_decode($server->vm_details, true);
+        $adminUsername = $server_vm_details['properties']['osProfile']['adminUsername'] ?? null;
+        if (empty($adminUsername)) {
+            try {
+                $fresh_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+                $adminUsername = $fresh_vm['properties']['osProfile']['adminUsername'] ?? null;
+            } catch (\Throwable $e) {}
         }
 
+        $username = $adminUsername ?: input('username/s');
+        if (empty($username)) {
+            return json(Tools::msg('0', '重置失败', '用户名不能为空'));
+        }
+
+        if ($username !== $adminUsername) {
+            if ($error = $this->validateVmUsername($username)) {
+                return json(Tools::msg('0', '重置失败', $error));
+            }
+        }
+
+        try {
+            $original_status = $this->getVmPowerState($server->account_id, $server->request_url);
+        } catch (\Throwable $statusEx) {
+            return json(Tools::msg('0', '重置失败', '查询虚拟机电源状态失败：' . $this->azureErrorMessage($statusEx)));
+        }
+
+        $was_running = ($original_status === 'PowerState/running');
+        $restored_power = false;
+
+        if (!$was_running) {
+            try {
+                AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+                if (!$this->waitForVmPowerState($server->account_id, $server->request_url, 'PowerState/running', 120)) {
+                    throw new \Exception('等待虚拟机启动超时');
+                }
+            } catch (\Throwable $startEx) {
+                return json(Tools::msg('0', '重置失败', '启动虚拟机失败以应用凭据：' . $this->azureErrorMessage($startEx)));
+            }
+        }
+
+        $reset_error = null;
         try {
             if ($os_type === 'linux' && $credential_mode === 'ssh') {
                 $ssh_key = SshKey::where('user_id', session('user_id'))->find($ssh_key_id);
                 if ($ssh_key === null) {
-                    return json(Tools::msg('0', '重置失败', '未找到可用 SSH 密钥'));
+                    throw new \Exception('未找到可用 SSH 密钥');
                 }
                 AzureApi::updateLinuxVmAccess($server, $username, [
                     'ssh_key' => $ssh_key->public_key,
@@ -1436,23 +1472,44 @@ class UserAzureServer extends UserBase
                 try {
                     AzureApi::runLinuxShellCommand($server, $this->disableLinuxSshPasswordCommands());
                 } catch (\Throwable $hardening) {
-                    return json(Tools::msg('0', '重置失败', '密钥已更新，但关闭密码登录失败：' . $this->azureErrorMessage($hardening)));
+                    throw new \Exception('密钥已更新，但关闭密码登录失败：' . $this->azureErrorMessage($hardening));
                 }
             } elseif ($os_type === 'linux') {
                 if ($error = $this->validateVmPassword($password)) {
-                    return json(Tools::msg('0', '重置失败', $error));
+                    throw new \Exception($error);
                 }
                 AzureApi::updateLinuxVmAccess($server, $username, [
                     'password' => $password,
                 ]);
             } else {
                 if ($error = $this->validateVmPassword($password)) {
-                    return json(Tools::msg('0', '重置失败', $error));
+                    throw new \Exception($error);
                 }
                 AzureApi::updateWindowsVmAccess($server, $username, $password);
             }
         } catch (\Throwable $e) {
-            return json(Tools::msg('0', '重置失败', $this->azureErrorMessage($e)));
+            $reset_error = $e;
+        }
+
+        $restore_error = null;
+        if (!$was_running) {
+            try {
+                $this->restoreVmPowerState($server->account_id, $server->request_url, $original_status);
+            } catch (\Throwable $restoreEx) {
+                $restore_error = $restoreEx;
+            }
+        }
+
+        if ($reset_error !== null) {
+            $errMsg = $this->azureErrorMessage($reset_error);
+            if ($restore_error !== null) {
+                $errMsg .= ' 并且恢复电源状态失败：' . $restore_error->getMessage();
+            }
+            return json(Tools::msg('0', '重置失败', $errMsg));
+        }
+
+        if ($restore_error !== null) {
+            return json(Tools::msg('1', '重置部分成功', '凭据更新成功，但恢复电源状态失败：' . $restore_error->getMessage()));
         }
 
         return json(Tools::msg('1', '重置结果', '重置成功'));
@@ -1575,6 +1632,7 @@ class UserAzureServer extends UserBase
 
     public function updateFirewallRule($uuid, $name)
     {
+        $name = urldecode($name);
         $server = $this->findOwnedServer($uuid);
         if ($server === null) {
             return json(Tools::msg('0', '更新失败', '虚拟机不存在或无权操作'));
@@ -1592,6 +1650,7 @@ class UserAzureServer extends UserBase
 
     public function deleteFirewallRule($uuid, $name)
     {
+        $name = urldecode($name);
         $server = $this->findOwnedServer($uuid);
         if ($server === null) {
             return json(Tools::msg('0', '删除失败', '虚拟机不存在或无权操作'));
@@ -1605,5 +1664,69 @@ class UserAzureServer extends UserBase
         }
 
         return json(Tools::msg('1', '删除结果', '删除成功'));
+    }
+
+    private function getVmPowerState(string $accountId, string $requestUrl): string
+    {
+        $attempts = 0;
+        $maxAttempts = 3;
+        while ($attempts < $maxAttempts) {
+            try {
+                $vmStatus = AzureApi::getAzureVirtualMachineStatus($accountId, $requestUrl);
+                if (isset($vmStatus['statuses'])) {
+                    foreach ($vmStatus['statuses'] as $statusInfo) {
+                        if (isset($statusInfo['code']) && strpos($statusInfo['code'], 'PowerState/') === 0) {
+                            return $statusInfo['code'];
+                        }
+                    }
+                    $code = $vmStatus['statuses']['1']['code'] ?? null;
+                    if ($code !== null) {
+                        return $code;
+                    }
+                }
+            } catch (\Throwable $e) {
+                if ($attempts === $maxAttempts - 1) {
+                    throw $e;
+                }
+            }
+            $attempts++;
+            sleep(1);
+        }
+        throw new \Exception('无法获取虚拟机电源状态');
+    }
+
+    private function waitForVmPowerState(string $accountId, string $requestUrl, string $targetStatus, int $maxSeconds = 120): bool
+    {
+        $seconds = 0;
+        while ($seconds < $maxSeconds) {
+            try {
+                $status = $this->getVmPowerState($accountId, $requestUrl);
+                if ($status === $targetStatus) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // 容忍轮商过程中的瞬时网络故障
+            }
+            sleep(2);
+            $seconds += 2;
+        }
+        return false;
+    }
+
+    private function restoreVmPowerState(string $accountId, string $requestUrl, string $originalStatus): void
+    {
+        if ($originalStatus === 'PowerState/deallocated' || $originalStatus === 'PowerState/deallocating') {
+            AzureApi::virtualMachinesDeallocate($accountId, $requestUrl);
+            if (!$this->waitForVmPowerState($accountId, $requestUrl, 'PowerState/deallocated', 120)) {
+                throw new \Exception('等待虚拟机去分配超时');
+            }
+        } elseif ($originalStatus === 'PowerState/stopped' || $originalStatus === 'PowerState/stopping') {
+            AzureApi::manageVirtualMachine('stop', $accountId, $requestUrl);
+            if (!$this->waitForVmPowerState($accountId, $requestUrl, 'PowerState/stopped', 120)) {
+                throw new \Exception('等待虚拟机停止超时');
+            }
+        } else {
+            throw new \Exception('无法恢复到原始电源状态：' . $originalStatus);
+        }
     }
 }
