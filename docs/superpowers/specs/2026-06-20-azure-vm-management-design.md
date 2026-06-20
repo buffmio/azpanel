@@ -7,6 +7,8 @@ Date: 2026-06-20
 Add Azure VM operations for:
 
 - Reinstalling a VM to a selected image while preserving the VM resource, resource group, network interface, public IP, and size where Azure supports it.
+- Rolling back a failed reinstall to the original OS disk when the failure happens after replacement begins.
+- Cleaning up replaced or temporary reinstall resources after a successful reinstall.
 - Resetting VM login credentials for Linux and Windows VMs.
 - Managing full Azure Network Security Group security rules for a VM.
 - Removing the AWS feature surface from the application while retaining existing database tables and migrations.
@@ -65,12 +67,29 @@ Server flow:
 2. Validate image key against `AzureList::images()`.
 3. Validate username and password with the same policy used during VM creation.
 4. Create a `UserTask` named `重装虚拟机系统`.
-5. Call Azure VM Reimage with `osProfile` and image version data where supported.
-6. Poll instance status until Azure reports a stable state or a timeout is reached.
-7. Refresh VM details, instance details, OS offer/SKU, disk details, status, and timestamps in `azure_server`.
-8. End the task and return a JSON result.
+5. Stop and deallocate the VM if needed.
+6. Read and store the current OS disk ID, name, storage account type, delete option, image metadata, and VM model in the task parameters.
+7. Create a replacement OS disk from the selected image.
+8. Update the VM model so the OS disk points to the replacement disk and the requested `osProfile` credentials.
+9. Start the VM and poll instance status until Azure reports a stable running state or a timeout is reached.
+10. Refresh VM details, instance details, OS offer/SKU, disk details, status, and timestamps in `azure_server`.
+11. Delete the replaced original OS disk and any temporary reinstall resources after the replacement VM has started successfully.
+12. End the task and return a JSON result.
 
-If Azure rejects switching an existing VM to a different publisher/offer/SKU, the raw Azure error body is captured in the task and returned to the user. The application does not silently fall back to resource-group destruction.
+Rollback behavior:
+
+- If validation fails before disk replacement starts, no rollback is needed.
+- If Azure rejects replacement disk creation, keep the original VM unchanged.
+- If the VM update or startup fails after the replacement disk is attached, detach the replacement disk, reattach the original OS disk using the stored VM model data, start the VM, refresh local details, and mark the task as failed with rollback status.
+- If rollback also fails, keep the task failed and return both the original error and rollback error so an operator can repair the VM in Azure.
+
+Cleanup behavior:
+
+- On success, delete the original OS disk that was replaced.
+- Delete replacement attempt artifacts that are no longer attached.
+- Do not delete the current attached OS disk, NIC, public IP, NSG, resource group, or data disks.
+
+The implementation uses explicit OS disk replacement instead of relying only on Azure VM Reimage. This is required so the application can keep a known rollback point and delete replaced resources after success.
 
 ## Credential Reset Flow
 
@@ -158,6 +177,12 @@ After removal, a repository search for AWS route paths should show no callable `
 All new actions return the existing `Tools::msg()` JSON shape.
 
 Long-running reimage errors are also written to the matching `UserTask` using `UserTask::end(..., true, ...)`.
+
+Reimage failures include rollback status. The user-facing message must distinguish:
+
+- Failure before replacement started.
+- Failure after replacement started and rollback succeeded.
+- Failure after replacement started and rollback failed.
 
 Azure exception handling should prefer the response body when available. If no response body exists, use the exception message.
 
