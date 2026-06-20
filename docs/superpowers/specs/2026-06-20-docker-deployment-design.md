@@ -23,7 +23,7 @@ Reference URL: https://github.com/azpanel/azpanel/wiki/lnmp.org
 Docker Compose will run separate services:
 
 - `web`: Nginx serving static files from `public/` and forwarding PHP requests to `app:9000`.
-- `app`: PHP 8.3 FPM with Composer dependencies, required PHP extensions, and optional cron managed inside the same container.
+- `app`: PHP 8.3 FPM with Composer dependencies, required PHP extensions, and cron managed inside the same container.
 - `db`: MariaDB using `mariadb:10.11-jammy`.
 
 Application files are bind-mounted into containers for straightforward upgrade and debugging. Persistent data lives in Docker volumes for MariaDB and in project directories for runtime, logs, and certificates.
@@ -93,7 +93,6 @@ The script prompts for:
 - Whether to import base SQL.
 - Whether to run migrations and seeds.
 - Whether to create the admin user.
-- Whether to enable cron inside the app container.
 
 The script then:
 
@@ -105,7 +104,7 @@ The script then:
 6. Imports `database/azure.sql` and `database/config.sql` when requested.
 7. Runs `php think migrate:run` and `php think seed:run` when requested.
 8. Creates an admin account when requested.
-9. Enables cron inside `app` when requested by setting `ENABLE_CRON=true`.
+9. Starts cron inside the `app` container together with PHP-FPM.
 
 ### redeploy
 
@@ -168,7 +167,7 @@ The app image must install PHP extensions required by the project:
 The app image also installs `supervisor` and `cron`. `supervisord` is the app container entrypoint and manages:
 
 - `php-fpm`, always enabled.
-- `cron`, enabled only when `ENABLE_CRON=true`.
+- `cron`, always enabled.
 
 The image must run `composer install --no-dev --optimize-autoloader` for production use. The `post-autoload-dump` scripts are allowed during image build if the ThinkPHP runtime can discover services successfully; if they fail due to build-time environment constraints, the Dockerfile should use `composer install --no-dev --no-scripts --optimize-autoloader` and run `php think service:discover` inside the initialized container when needed.
 
@@ -176,7 +175,7 @@ PHP config must not disable `system`, `proc_open`, or `proc_get_status`.
 
 ## Cron
 
-Cron runs inside the `app` container when `ENABLE_CRON=true`. It uses the LNMP guide's scheduled commands:
+Cron always runs inside the `app` container. It uses the LNMP guide's scheduled commands:
 
 ```cron
 0 0 * * * php /var/www/html/think tools --action statisticsTraffic
