@@ -208,7 +208,7 @@ issue_letsencrypt() {
     cp "$CERTBOT_CONF_DIR/live/$domain/fullchain.pem" "$CERT_DIR/fullchain.pem"
     cp "$CERTBOT_CONF_DIR/live/$domain/privkey.pem" "$CERT_DIR/privkey.pem"
     use_https_config "$domain"
-    $COMPOSE up -d web
+    $COMPOSE up -d --force-recreate web
 }
 
 install_app() {
