@@ -44,8 +44,8 @@ prompt_secret_default() {
     local default="$2"
     local value
     read -r -s -p "${prompt} [留空自动生成]: " value
-    echo
-    echo "${value:-$default}"
+    printf '\n' >&2
+    printf '%s\n' "${value:-$default}"
 }
 
 prompt_yes_no() {
