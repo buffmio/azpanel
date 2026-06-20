@@ -70,15 +70,14 @@ Route::get('/user/azure/resources/:id/:name',     'UserAzure/readResourceGroup')
 Route::resource('/user/server/azure/rule',        'UserAzureServerRule');
 Route::get('/user/server/azure/rule/log',         'UserAzureServerRule/log');
 
-// Aws 账户
-Route::resource('/user/aws',                      'UserAws');
-Route::post('/user/aws/search',                   'UserAws/searchAccount');
-
-// Aws 服务器
-Route::resource('/user/server/aws',               'UserAwsServer');
-
 // Azure 服务器
 Route::resource('/user/server/azure',             'UserAzureServer');
+Route::put('/user/server/azure/reimage/:uuid',    'UserAzureServer/reimage');
+Route::put('/user/server/azure/credential/:uuid', 'UserAzureServer/credential');
+Route::get('/user/server/azure/firewall/:uuid',          'UserAzureServer/firewall');
+Route::post('/user/server/azure/firewall/:uuid',         'UserAzureServer/createFirewallRule');
+Route::put('/user/server/azure/firewall/:uuid/:name',    'UserAzureServer/updateFirewallRule');
+Route::delete('/user/server/azure/firewall/:uuid/:name', 'UserAzureServer/deleteFirewallRule');
 Route::post('/user/server/azure/search',          'UserAzureServer/search');
 Route::post('/user/server/azure/available',       'UserAzureServer/available');
 Route::post('/user/server/azure/price',           'UserAzureServer/price');

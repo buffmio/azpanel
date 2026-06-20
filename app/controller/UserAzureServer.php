@@ -580,7 +580,11 @@ class UserAzureServer extends UserBase
         $network_dialog = json_encode($network_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $instance_dialog = json_encode($instance_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
+        $ssh_key = SshKey::where('user_id', session('user_id'))->find();
+
         View::assign('server', $server);
+        View::assign('images', AzureList::images());
+        View::assign('ssh_key', $ssh_key);
         View::assign('vm_sizes', $vm_sizes);
         View::assign('disk_sizes', $disk_sizes);
         View::assign('disk_tiers', $disk_tiers);
@@ -1079,5 +1083,451 @@ class UserAzureServer extends UserBase
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    private function findOwnedServer(string $uuid): ?AzureServer
+    {
+        return AzureServer::where('user_id', session('user_id'))
+            ->where('vm_id', $uuid)
+            ->find();
+    }
+
+    private function validateVmUsername(string $username): ?string
+    {
+        $prohibit_user = ['root', 'Admin', 'admin', 'centos', 'debian', 'ubuntu', 'administrator', 'test'];
+        if (!preg_match('/^[a-zA-Z0-9]+$/', $username) || in_array($username, $prohibit_user, true)) {
+            return '用户名只允许使用大小写字母与数字的组合，且不能使用常见用户名';
+        }
+
+        return null;
+    }
+
+    private function validateVmPassword(string $password): ?string
+    {
+        $uppercase = preg_match('@[A-Z]@', $password);
+        $lowercase = preg_match('@[a-z]@', $password);
+        $number = preg_match('@[0-9]@', $password);
+
+        if (!$uppercase || !$lowercase || !$number || strlen($password) < 12 || strlen($password) > 72) {
+            return '密码不符合要求，请阅读使用说明';
+        }
+
+        return null;
+    }
+
+    private function azureErrorMessage(\Throwable $e): string
+    {
+        if (method_exists($e, 'getResponse') && $e->getResponse() !== null) {
+            try {
+                return $e->getResponse()->getBody()->getContents();
+            } catch (\Throwable $readEx) {
+                return $e->getMessage();
+            }
+        }
+
+        return $e->getMessage();
+    }
+
+    private function buildOsProfile(string $vm_name, string $username, string $credential_mode, ?string $password, int $ssh_key_id): array
+    {
+        $profile = [
+            'computerName' => $vm_name,
+            'adminUsername' => $username,
+        ];
+
+        if ($credential_mode === 'ssh') {
+            $ssh_key = SshKey::where('user_id', session('user_id'))->find($ssh_key_id);
+            if ($ssh_key === null) {
+                throw new \Exception('未找到可用 SSH 密钥');
+            }
+
+            $profile['linuxConfiguration'] = [
+                'disablePasswordAuthentication' => true,
+                'ssh' => [
+                    'publicKeys' => [
+                        [
+                            'path' => '/home/' . $username . '/.ssh/authorized_keys',
+                            'keyData' => $ssh_key->public_key,
+                        ],
+                    ],
+                ],
+            ];
+        } else {
+            $profile['adminPassword'] = $password;
+        }
+
+        return $profile;
+    }
+
+    public function reimage($uuid)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '重装失败', '虚拟机不存在或无权操作'));
+        }
+
+        $image_key = input('image/s');
+        $username = input('username/s');
+        $password = input('password/s');
+        $credential_mode = input('credential_mode/s', 'password');
+        $ssh_key_id = (int) input('ssh_key/d');
+        $task_uuid = input('task_uuid/s');
+        $images = AzureList::images();
+
+        if (!isset($images[$image_key])) {
+            return json(Tools::msg('0', '重装失败', '请选择有效镜像'));
+        }
+
+        if (Str::contains($image_key, 'Win') && $credential_mode === 'ssh') {
+            return json(Tools::msg('0', '重装失败', 'Windows 镜像不支持 SSH 密钥模式'));
+        }
+
+        if ($error = $this->validateVmUsername($username)) {
+            return json(Tools::msg('0', '重装失败', $error));
+        }
+
+        if ($credential_mode !== 'ssh' && ($error = $this->validateVmPassword($password))) {
+            return json(Tools::msg('0', '重装失败', $error));
+        }
+
+        try {
+            $vm_details = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '重装失败', '获取虚拟机详情失败：' . $this->azureErrorMessage($e)));
+        }
+
+        $original_disk = $vm_details['properties']['storageProfile']['osDisk'];
+        $original_disk_name = $original_disk['name'];
+        $replacement_disk_name = $server->name . '_os_' . date('YmdHis');
+        $task_id = UserTask::create(session('user_id'), '重装虚拟机系统', [
+            'vm_name' => $server->name,
+            'original_disk' => $original_disk,
+            'replacement_disk' => $replacement_disk_name,
+            'image' => $image_key,
+        ], $task_uuid);
+
+        $replacement_attached = false;
+
+        try {
+            UserTask::update($task_id, 1 / 7, '正在分离计算资源');
+            AzureApi::virtualMachinesDeallocate($server->account_id, $server->request_url);
+
+            // 等待关机
+            $count = 0;
+            do {
+                sleep(2);
+                $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+                $status = $vm_status['statuses']['1']['code'] ?? 'null';
+                $count++;
+            } while ($status !== 'PowerState/deallocated' && $count < 60);
+
+            UserTask::update($task_id, 2 / 7, '正在创建替换系统盘');
+            $replacement_disk = AzureApi::createManagedDiskFromImage(
+                $server->account_id,
+                $server->at_subscription_id,
+                $server->resource_group,
+                $server->location,
+                $replacement_disk_name,
+                $images[$image_key],
+                $server->disk_size,
+                $original_disk['managedDisk']['storageAccountType'] ?? 'Standard_LRS'
+            );
+
+            UserTask::update($task_id, 3 / 7, '正在替换系统盘');
+            $new_os_disk = $original_disk;
+            $new_os_disk['name'] = $replacement_disk_name;
+            $new_os_disk['managedDisk']['id'] = $replacement_disk['id'];
+            $new_os_disk['createOption'] = 'Attach';
+
+            // 替换系统盘前我们需要确保OS profile能够成功生成
+            $os_profile = $this->buildOsProfile($server->name, $username, $credential_mode, $password, $ssh_key_id);
+
+            // 同时将原 osProfile 等覆盖
+            AzureApi::updateVirtualMachineOsDisk(
+                $server->account_id,
+                $server->request_url,
+                $server->location,
+                $vm_details['properties']['hardwareProfile'],
+                $vm_details['properties']['networkProfile'],
+                $new_os_disk,
+                $os_profile
+            );
+            $replacement_attached = true;
+
+            UserTask::update($task_id, 4 / 7, '正在启动虚拟机');
+            AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+
+            // 等待开机
+            $count = 0;
+            do {
+                sleep(2);
+                $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+                $status = $vm_status['statuses']['1']['code'] ?? 'null';
+                $count++;
+            } while ($status !== 'PowerState/running' && $count < 60);
+
+            UserTask::update($task_id, 5 / 7, '正在刷新虚拟机信息');
+            $fresh_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+            $instance_details = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+            $server->vm_details = json_encode($fresh_vm);
+            $server->instance_details = json_encode($instance_details);
+            $server->os_offer = $images[$image_key]['offer'];
+            $server->os_sku = $images[$image_key]['sku'];
+            $server->status = $instance_details['statuses']['1']['code'] ?? 'null';
+            $server->updated_at = time();
+            $server->save();
+
+            UserTask::update($task_id, 6 / 7, '正在清理旧系统盘');
+            AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $original_disk_name);
+        } catch (\Throwable $e) {
+            $error = $this->azureErrorMessage($e);
+            if ($replacement_attached) {
+                try {
+                    // 回滚原磁盘
+                    $original_attached = $original_disk;
+                    $original_attached['createOption'] = 'Attach';
+                    AzureApi::updateVirtualMachineOsDisk(
+                        $server->account_id,
+                        $server->request_url,
+                        $server->location,
+                        $vm_details['properties']['hardwareProfile'],
+                        $vm_details['properties']['networkProfile'],
+                        $original_attached,
+                        $vm_details['properties']['osProfile'] ?? []
+                    );
+                    // 挂接成功后可以尝试启动，若未启动或者需要清理刚才的临时空盘
+                    try {
+                        AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+                    } catch (\Throwable $startEx) {}
+
+                    AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $replacement_disk_name);
+                    UserTask::end($task_id, true, ['msg' => '重装失败，已回滚：' . $error]);
+                    return json(Tools::msg('0', '重装失败', '重装失败，已回滚：' . $error));
+                } catch (\Throwable $rollback) {
+                    $rollback_error = $this->azureErrorMessage($rollback);
+                    UserTask::end($task_id, true, ['msg' => '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error]);
+                    return json(Tools::msg('0', '重装失败', '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error));
+                }
+            }
+
+            UserTask::end($task_id, true, ['msg' => $error]);
+            return json(Tools::msg('0', '重装失败', $error));
+        }
+
+        UserTask::end($task_id, false);
+        return json(Tools::msg('1', '重装结果', '重装成功'));
+    }
+
+    private function disableLinuxSshPasswordCommands(): array
+    {
+        return [
+            "sudo mkdir -p /etc/ssh/sshd_config.d",
+            "if [ -f /etc/ssh/sshd_config ]; then sudo sed -i 's/^#\\?PasswordAuthentication .*/PasswordAuthentication no/g' /etc/ssh/sshd_config; fi",
+            "if [ -f /etc/ssh/sshd_config ]; then sudo sed -i 's/^#\\?PubkeyAuthentication .*/PubkeyAuthentication yes/g' /etc/ssh/sshd_config; fi",
+            "echo 'PasswordAuthentication no' | sudo tee /etc/ssh/sshd_config.d/99-azpanel.conf",
+            "echo 'PubkeyAuthentication yes' | sudo tee -a /etc/ssh/sshd_config.d/99-azpanel.conf",
+            "sudo systemctl restart sshd || sudo systemctl restart ssh || sudo service sshd restart || sudo service ssh restart",
+        ];
+    }
+
+    public function credential($uuid)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '重置失败', '虚拟机不存在或无权操作'));
+        }
+
+        $os_type = input('os_type/s');
+        $username = input('username/s');
+        $password = input('password/s');
+        $credential_mode = input('credential_mode/s', 'password');
+        $ssh_key_id = (int) input('ssh_key/d');
+
+        if (!in_array($os_type, ['linux', 'windows'], true)) {
+            return json(Tools::msg('0', '重置失败', '请选择系统类型'));
+        }
+
+        if ($os_type === 'windows' && $credential_mode === 'ssh') {
+            return json(Tools::msg('0', '重置失败', 'Windows 不支持 SSH 密钥模式'));
+        }
+
+        if ($error = $this->validateVmUsername($username)) {
+            return json(Tools::msg('0', '重置失败', $error));
+        }
+
+        try {
+            if ($os_type === 'linux' && $credential_mode === 'ssh') {
+                $ssh_key = SshKey::where('user_id', session('user_id'))->find($ssh_key_id);
+                if ($ssh_key === null) {
+                    return json(Tools::msg('0', '重置失败', '未找到可用 SSH 密钥'));
+                }
+                AzureApi::updateLinuxVmAccess($server, $username, [
+                    'ssh_key' => $ssh_key->public_key,
+                ]);
+                try {
+                    AzureApi::runLinuxShellCommand($server, $this->disableLinuxSshPasswordCommands());
+                } catch (\Throwable $hardening) {
+                    return json(Tools::msg('0', '重置失败', '密钥已更新，但关闭密码登录失败：' . $this->azureErrorMessage($hardening)));
+                }
+            } elseif ($os_type === 'linux') {
+                if ($error = $this->validateVmPassword($password)) {
+                    return json(Tools::msg('0', '重置失败', $error));
+                }
+                AzureApi::updateLinuxVmAccess($server, $username, [
+                    'password' => $password,
+                ]);
+            } else {
+                if ($error = $this->validateVmPassword($password)) {
+                    return json(Tools::msg('0', '重置失败', $error));
+                }
+                AzureApi::updateWindowsVmAccess($server, $username, $password);
+            }
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '重置失败', $this->azureErrorMessage($e)));
+        }
+
+        return json(Tools::msg('1', '重置结果', '重置成功'));
+    }
+
+    private function ensureServerNsg(AzureServer $server): array
+    {
+        $network_details = json_decode($server->network_details, true);
+        $nsg_id = $network_details['properties']['networkSecurityGroup']['id'] ?? null;
+
+        if ($nsg_id !== null) {
+            $parts = explode('/', $nsg_id);
+            return [
+                'name' => end($parts),
+                'id' => $nsg_id,
+            ];
+        }
+
+        $nsg_name = $server->name . '_security';
+        $nsg = AzureApi::createNetworkSecurityGroup($server, $nsg_name);
+        $network_details['properties']['networkSecurityGroup'] = [
+            'id' => $nsg['id'],
+        ];
+        $updated = AzureApi::updateNetworkInterface($server, $network_details);
+        $server->network_details = json_encode($updated);
+        $server->save();
+
+        return [
+            'name' => $nsg_name,
+            'id' => $nsg['id'],
+        ];
+    }
+
+    private function buildSecurityRuleProperties(AzureServer $server, string $nsg_name, ?string $current_rule_name = null): array
+    {
+        $name = input('name/s');
+        if (!preg_match('/^[A-Za-z0-9_.-]+$/', $name)) {
+            throw new \Exception('规则名称只允许字母、数字、下划线、点和短横线');
+        }
+
+        $priority = (int) input('priority/d');
+        if ($priority < 100 || $priority > 4096) {
+            throw new \Exception('优先级必须在 100 到 4096 之间');
+        }
+
+        $rules = AzureApi::listSecurityRules($server, $nsg_name);
+        foreach ($rules['value'] ?? [] as $rule) {
+            if (($rule['properties']['priority'] ?? null) === $priority && $rule['name'] !== $current_rule_name) {
+                throw new \Exception('优先级已被规则 ' . $rule['name'] . ' 使用');
+            }
+        }
+
+        $direction = input('direction/s');
+        $access = input('access/s');
+        $protocol = input('protocol/s');
+        if (!in_array($direction, ['Inbound', 'Outbound'], true)) {
+            throw new \Exception('方向无效');
+        }
+        if (!in_array($access, ['Allow', 'Deny'], true)) {
+            throw new \Exception('动作无效');
+        }
+        if (!in_array($protocol, ['Tcp', 'Udp', 'Icmp', '*'], true)) {
+            throw new \Exception('协议无效');
+        }
+
+        return [
+            'description' => mb_substr(input('description/s'), 0, 140),
+            'protocol' => $protocol,
+            'sourcePortRange' => input('source_port/s', '*'),
+            'destinationPortRange' => input('destination_port/s', '*'),
+            'sourceAddressPrefix' => input('source_address/s', '*'),
+            'destinationAddressPrefix' => input('destination_address/s', '*'),
+            'access' => $access,
+            'priority' => $priority,
+            'direction' => $direction,
+        ];
+    }
+
+    public function firewall($uuid)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '读取失败', '虚拟机不存在或无权操作'));
+        }
+
+        try {
+            $nsg = $this->ensureServerNsg($server);
+            $rules = AzureApi::listSecurityRules($server, $nsg['name']);
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '读取失败', $this->azureErrorMessage($e)));
+        }
+
+        return json(['status' => '1', 'nsg' => $nsg, 'rules' => $rules['value'] ?? []]);
+    }
+
+    public function createFirewallRule($uuid)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '创建失败', '虚拟机不存在或无权操作'));
+        }
+
+        try {
+            $nsg = $this->ensureServerNsg($server);
+            $name = input('name/s');
+            AzureApi::saveSecurityRule($server, $nsg['name'], $name, $this->buildSecurityRuleProperties($server, $nsg['name']));
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '创建失败', $this->azureErrorMessage($e)));
+        }
+
+        return json(Tools::msg('1', '创建结果', '创建成功'));
+    }
+
+    public function updateFirewallRule($uuid, $name)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '更新失败', '虚拟机不存在或无权操作'));
+        }
+
+        try {
+            $nsg = $this->ensureServerNsg($server);
+            AzureApi::saveSecurityRule($server, $nsg['name'], $name, $this->buildSecurityRuleProperties($server, $nsg['name'], $name));
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '更新失败', $this->azureErrorMessage($e)));
+        }
+
+        return json(Tools::msg('1', '更新结果', '更新成功'));
+    }
+
+    public function deleteFirewallRule($uuid, $name)
+    {
+        $server = $this->findOwnedServer($uuid);
+        if ($server === null) {
+            return json(Tools::msg('0', '删除失败', '虚拟机不存在或无权操作'));
+        }
+
+        try {
+            $nsg = $this->ensureServerNsg($server);
+            AzureApi::deleteSecurityRule($server, $nsg['name'], $name);
+        } catch (\Throwable $e) {
+            return json(Tools::msg('0', '删除失败', $this->azureErrorMessage($e)));
+        }
+
+        return json(Tools::msg('1', '删除结果', '删除成功'));
     }
 }

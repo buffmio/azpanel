@@ -226,6 +226,186 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">restore</i>&nbsp;重装系统
+                            </p>
+                            <div class="mdui-m-t-2">
+                                镜像：<select id="reimage_image" class="mdui-select" mdui-select>
+                                    {volist name="images" id="image"}
+                                    <option value="{$key}">{$image.display}</option>
+                                    {/volist}
+                                </select>
+                            </div>
+                            <div class="mdui-textfield mdui-textfield-floating-label">
+                                <label class="mdui-textfield-label">用户名</label>
+                                <input class="mdui-textfield-input" id="reimage_username">
+                            </div>
+                            <div class="mdui-m-t-2">
+                                凭据：<select id="reimage_credential_mode" class="mdui-select" mdui-select>
+                                    <option value="password">密码</option>
+                                    <option value="ssh">SSH 密钥</option>
+                                </select>
+                            </div>
+                            <div class="mdui-textfield mdui-textfield-floating-label" id="reimage_password_wrap">
+                                <label class="mdui-textfield-label">密码</label>
+                                <input class="mdui-textfield-input" id="reimage_password">
+                            </div>
+                            <div class="mdui-m-t-2" id="reimage_ssh_wrap">
+                                密钥：<select id="reimage_ssh_key" class="mdui-select" mdui-select>
+                                    {if !empty($ssh_key)}
+                                    <option value="{$ssh_key->id}">{$ssh_key->name}</option>
+                                    {/if}
+                                </select>
+                            </div>
+                            <div class="mdui-m-t-2">
+                                <button onclick="reimage(this)" data-id="{$server->vm_id}" class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">重装</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mdui-col-md-6 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">vpn_key</i>&nbsp;重置凭据
+                            </p>
+                            <div class="mdui-m-t-2">
+                                系统：<select id="credential_os_type" class="mdui-select" mdui-select>
+                                    <option value="linux">Linux</option>
+                                    <option value="windows">Windows</option>
+                                </select>
+                            </div>
+                            <div class="mdui-textfield mdui-textfield-floating-label">
+                                <label class="mdui-textfield-label">用户名</label>
+                                <input class="mdui-textfield-input" id="credential_username">
+                            </div>
+                            <div class="mdui-m-t-2">
+                                凭据：<select id="credential_mode" class="mdui-select" mdui-select>
+                                    <option value="password">密码</option>
+                                    <option value="ssh">SSH 密钥</option>
+                                </select>
+                            </div>
+                            <div class="mdui-textfield mdui-textfield-floating-label" id="credential_password_wrap">
+                                <label class="mdui-textfield-label">密码</label>
+                                <input class="mdui-textfield-input" id="credential_password">
+                            </div>
+                            <div class="mdui-m-t-2" id="credential_ssh_wrap">
+                                密钥：<select id="credential_ssh_key" class="mdui-select" mdui-select>
+                                    {if !empty($ssh_key)}
+                                    <option value="{$ssh_key->id}">{$ssh_key->name}</option>
+                                    {/if}
+                                </select>
+                            </div>
+                            <div class="mdui-m-t-2">
+                                <button onclick="credential(this)" data-id="{$server->vm_id}" class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">重置</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
+                    <div class="mdui-card" style="overflow: visible">
+                        <div class="mdui-card-content">
+                            <p style="color: #3F51B5; font-size: 18px">
+                                <i class="mdui-icon material-icons">security</i>&nbsp;防火墙规则
+                            </p>
+                            <button onclick="loadFirewall(this)" data-id="{$server->vm_id}" class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">加载规则</button>
+                            <div class="mdui-row mdui-m-t-2">
+                                <input type="hidden" id="firewall_editing_name">
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">名称</label>
+                                        <input class="mdui-textfield-input" id="firewall_name">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    方向：<select id="firewall_direction" class="mdui-select" mdui-select>
+                                        <option value="Inbound">入站</option>
+                                        <option value="Outbound">出站</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-2 mdui-col-sm-12">
+                                    协议：<select id="firewall_protocol" class="mdui-select" mdui-select>
+                                        <option value="Tcp">TCP</option>
+                                        <option value="Udp">UDP</option>
+                                        <option value="Icmp">ICMP</option>
+                                        <option value="*">任意</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-2 mdui-col-sm-12">
+                                    动作：<select id="firewall_access" class="mdui-select" mdui-select>
+                                        <option value="Allow">允许</option>
+                                        <option value="Deny">拒绝</option>
+                                    </select>
+                                </div>
+                                <div class="mdui-col-md-2 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">优先级</label>
+                                        <input class="mdui-textfield-input" id="firewall_priority" type="number" min="100" max="4096">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">来源地址</label>
+                                        <input class="mdui-textfield-input" id="firewall_source_address" value="*">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">来源端口</label>
+                                        <input class="mdui-textfield-input" id="firewall_source_port" value="*">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">目标地址</label>
+                                        <input class="mdui-textfield-input" id="firewall_destination_address" value="*">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-3 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">目标端口</label>
+                                        <input class="mdui-textfield-input" id="firewall_destination_port" value="*">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-12 mdui-col-sm-12">
+                                    <div class="mdui-textfield mdui-textfield-floating-label">
+                                        <label class="mdui-textfield-label">描述</label>
+                                        <input class="mdui-textfield-input" id="firewall_description">
+                                    </div>
+                                </div>
+                                <div class="mdui-col-md-12 mdui-col-sm-12 mdui-m-t-2">
+                                    <button onclick="saveFirewallRule(this)" data-id="{$server->vm_id}" class="mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey">保存规则</button>
+                                    <button onclick="resetFirewallForm()" class="mdui-btn mdui-btn-dense mdui-ripple">清空</button>
+                                </div>
+                            </div>
+                            <div class="mdui-table-fluid-fixed mdui-m-t-2">
+                                <table class="mdui-table">
+                                    <thead>
+                                        <tr>
+                                            <th>名称</th>
+                                            <th>方向</th>
+                                            <th>协议</th>
+                                            <th>动作</th>
+                                            <th>优先级</th>
+                                            <th>来源</th>
+                                            <th>来源端口</th>
+                                            <th>目标</th>
+                                            <th>目标端口</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="firewall_rules"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="mdui-container">
@@ -430,6 +610,208 @@
     $("#new_tier").prop('value', '{$vm_disk_tier}');
     $("#traffic_rule").prop('value', '{$server->rule}');
     $("#new_size option[value='{$server->vm_size}']").attr('disabled', 'disabled');
+
+    function toggleCredentialFields(prefix) {
+        let mode = $('#' + prefix + '_credential_mode').length ? $('#' + prefix + '_credential_mode').val() : $('#' + prefix + '_mode').val();
+        $('#' + prefix + '_password_wrap').toggle(mode !== 'ssh');
+        $('#' + prefix + '_ssh_wrap').toggle(mode === 'ssh');
+    }
+
+    $('#reimage_credential_mode').change(function () { toggleCredentialFields('reimage'); });
+    $('#credential_mode').change(function () { toggleCredentialFields('credential'); });
+    $('#credential_os_type').change(function () {
+        if ($(this).val() === 'windows') {
+            $('#credential_mode').val('password');
+            $('#credential_mode').prop('disabled', true);
+        } else {
+            $('#credential_mode').prop('disabled', false);
+        }
+        toggleCredentialFields('credential');
+    });
+    toggleCredentialFields('reimage');
+    toggleCredentialFields('credential');
+
+    function reimage(that) {
+        let id = $(that).data('id');
+        mdui.prompt('输入 yes 确认重装系统盘', '重装确认', function (value) {
+            if (value !== 'yes') {
+                mdui.alert('为避免误操作，请按提示输入 yes', '重装取消');
+                return;
+            }
+            var load = new mdui.alert('<p id="hint">准备中</p><div class="mdui-progress"><div class="mdui-progress-determinate"></div></div>', '进行中');
+            uuid = guid();
+            var cycle = setInterval(getProgress, 2000);
+            $.ajax({
+                method: 'PUT',
+                url: '/user/server/azure/reimage/' + id,
+                data: {
+                    task_uuid: uuid,
+                    image: $('#reimage_image').val(),
+                    username: $('#reimage_username').val(),
+                    credential_mode: $('#reimage_credential_mode').val(),
+                    password: $('#reimage_password').val(),
+                    ssh_key: $('#reimage_ssh_key').val()
+                },
+                dataType: 'json',
+                success: function (data) {
+                    load.close();
+                    clearInterval(cycle);
+                    mdui.alert(data.content, data.title);
+                    if (data.status == '1') {
+                        setTimeout("window.location.reload()", 1500);
+                    }
+                },
+                error: function () {
+                    clearInterval(cycle);
+                }
+            });
+        }, function () {}, { confirmText: '确定', cancelText: '取消' });
+    }
+
+    function credential(that) {
+        let id = $(that).data('id');
+        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+        $.ajax({
+            method: 'PUT',
+            url: '/user/server/azure/credential/' + id,
+            data: {
+                os_type: $('#credential_os_type').val(),
+                username: $('#credential_username').val(),
+                credential_mode: $('#credential_mode').val(),
+                password: $('#credential_password').val(),
+                ssh_key: $('#credential_ssh_key').val()
+            },
+            dataType: 'json',
+            success: function (data) {
+                load.close();
+                mdui.alert(data.content, data.title);
+            },
+            error: function () {
+                load.close();
+            }
+        });
+    }
+
+    function loadFirewall(that) {
+        let id = typeof that === 'string' ? that : $(that).data('id');
+        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+        $.ajax({
+            method: 'GET',
+            url: '/user/server/azure/firewall/' + id,
+            dataType: 'json',
+            success: function (data) {
+                load.close();
+                if (data.status == '0') {
+                    mdui.alert(data.content, data.title);
+                    return;
+                }
+                $('#firewall_rules').empty();
+                if (data.rules) {
+                    for (var i = 0; i < data.rules.length; i++) {
+                        var rule = data.rules[i];
+                        var encoded = encodeURIComponent(JSON.stringify(rule));
+                        var actions = '';
+                        if (rule.properties.priority >= 100 && rule.properties.priority <= 4096) {
+                            actions = '<button class="mdui-btn mdui-btn-dense" onclick="editFirewallRule(\'' + encoded + '\')">编辑</button>' +
+                                      '<button class="mdui-btn mdui-btn-dense" onclick="deleteFirewallRule(\'' + id + '\', \'' + rule.name + '\')">删除</button>';
+                        } else {
+                            actions = '<button class="mdui-btn mdui-btn-dense" disabled>只读</button>';
+                        }
+                        $('#firewall_rules').append('<tr><td>' + rule.name + '</td><td>' + rule.properties.direction + '</td><td>' + rule.properties.protocol + '</td><td>' + rule.properties.access + '</td><td>' + rule.properties.priority + '</td><td>' + rule.properties.sourceAddressPrefix + '</td><td>' + rule.properties.sourcePortRange + '</td><td>' + rule.properties.destinationAddressPrefix + '</td><td>' + rule.properties.destinationPortRange + '</td><td>' + actions + '</td></tr>');
+                    }
+                }
+            },
+            error: function() {
+                load.close();
+            }
+        });
+    }
+
+    function resetFirewallForm() {
+        $('#firewall_editing_name').val('');
+        $('#firewall_name').val('');
+        $('#firewall_direction').val('Inbound');
+        $('#firewall_protocol').val('Tcp');
+        $('#firewall_access').val('Allow');
+        $('#firewall_priority').val('');
+        $('#firewall_source_address').val('*');
+        $('#firewall_source_port').val('*');
+        $('#firewall_destination_address').val('*');
+        $('#firewall_destination_port').val('*');
+        $('#firewall_description').val('');
+    }
+
+    function editFirewallRule(encodedRule) {
+        var rule = JSON.parse(decodeURIComponent(encodedRule));
+        $('#firewall_editing_name').val(rule.name);
+        $('#firewall_name').val(rule.name);
+        $('#firewall_direction').val(rule.properties.direction);
+        $('#firewall_protocol').val(rule.properties.protocol);
+        $('#firewall_access').val(rule.properties.access);
+        $('#firewall_priority').val(rule.properties.priority);
+        $('#firewall_source_address').val(rule.properties.sourceAddressPrefix || '*');
+        $('#firewall_source_port').val(rule.properties.sourcePortRange || '*');
+        $('#firewall_destination_address').val(rule.properties.destinationAddressPrefix || '*');
+        $('#firewall_destination_port').val(rule.properties.destinationPortRange || '*');
+        $('#firewall_description').val(rule.properties.description || '');
+    }
+
+    function saveFirewallRule(that) {
+        let id = $(that).data('id');
+        let editing = $('#firewall_editing_name').val();
+        let method = editing === '' ? 'POST' : 'PUT';
+        let url = '/user/server/azure/firewall/' + id + (editing === '' ? '' : '/' + editing);
+        var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+        $.ajax({
+            method: method,
+            url: url,
+            data: {
+                name: $('#firewall_name').val(),
+                direction: $('#firewall_direction').val(),
+                protocol: $('#firewall_protocol').val(),
+                access: $('#firewall_access').val(),
+                priority: $('#firewall_priority').val(),
+                source_address: $('#firewall_source_address').val(),
+                source_port: $('#firewall_source_port').val(),
+                destination_address: $('#firewall_destination_address').val(),
+                destination_port: $('#firewall_destination_port').val(),
+                description: $('#firewall_description').val()
+            },
+            dataType: 'json',
+            success: function (data) {
+                load.close();
+                mdui.alert(data.content, data.title);
+                if (data.status == '1') {
+                    resetFirewallForm();
+                    loadFirewall(id);
+                }
+            },
+            error: function () {
+                load.close();
+            }
+        });
+    }
+
+    function deleteFirewallRule(id, name) {
+        mdui.confirm('确认删除规则 ' + name + '？', '删除确认', function () {
+            var load = new mdui.alert('<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>', '进行中');
+            $.ajax({
+                method: 'DELETE',
+                url: '/user/server/azure/firewall/' + id + '/' + name,
+                dataType: 'json',
+                success: function (data) {
+                    load.close();
+                    mdui.alert(data.content, data.title);
+                    if (data.status == '1') {
+                        loadFirewall(id);
+                    }
+                },
+                error: function () {
+                    load.close();
+                }
+            });
+        }, function () {}, { confirmText: '确定', cancelText: '取消' });
+    }
 </script>
 {include file="../app/view/user/footer.html" /}
 
