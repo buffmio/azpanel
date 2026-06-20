@@ -1412,11 +1412,19 @@ class UserAzureServer extends UserBase
 
     private function resolveVmOsDiskHyperVGeneration(AzureServer $server, array $vm_details): ?string
     {
+        // 1. 优先尝试直接从 VM details 最顶层配置中读取
+        $hyper_v_generation = $vm_details['properties']['hyperVGeneration'] ?? null;
+        if ($hyper_v_generation !== null) {
+            return $hyper_v_generation;
+        }
+
+        // 2. 尝试从已装载 of OS 硬盘配置中读取
         $hyper_v_generation = $vm_details['properties']['storageProfile']['osDisk']['hyperVGeneration'] ?? null;
         if ($hyper_v_generation !== null) {
             return $hyper_v_generation;
         }
 
+        // 3. 尝试直接从实体磁盘 API 接口中进行获取
         try {
             $disk = AzureApi::getDisks($server);
             $hyper_v_generation = $disk['properties']['hyperVGeneration'] ?? null;
@@ -1426,13 +1434,17 @@ class UserAzureServer extends UserBase
         } catch (\Throwable $e) {
         }
 
+        // 4. 尝试利用 VM 运行时状态 (instance view) 获取
         try {
             $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
-            return $vm_status['hyperVGeneration'] ?? null;
+            $hyper_v_generation = $vm_status['hyperVGeneration'] ?? null;
+            if ($hyper_v_generation !== null) {
+                return $hyper_v_generation;
+            }
         } catch (\Throwable $e) {
         }
 
-        return $vm_details['properties']['hyperVGeneration'] ?? null;
+        return null;
     }
 
     private function detectReplacementDiskAttachment(AzureServer $server, string $replacement_disk_name, ?string $replacement_disk_id): bool
@@ -1459,7 +1471,8 @@ class UserAzureServer extends UserBase
     private function deleteReplacementDiskSafely(AzureServer $server, string $disk_name, ?string $disk_id): void
     {
         $attempts = 0;
-        while ($attempts < 5) {
+        $maxAttempts = 12; // 调整最大重试次数为 12 次 (36秒左右)
+        while ($attempts < $maxAttempts) {
             if ($this->detectReplacementDiskAttachment($server, $disk_name, $disk_id)) {
                 throw new \Exception('临时替换盘仍附着在虚拟机上');
             }
