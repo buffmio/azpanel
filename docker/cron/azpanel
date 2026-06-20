@@ -1,0 +1,9 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 0 * * * www-data cd /var/www/html && php think tools --action statisticsTraffic >> /proc/1/fd/1 2>> /proc/1/fd/2
+0 * * * * www-data cd /var/www/html && php think autoRefreshAccount >> /proc/1/fd/1 2>> /proc/1/fd/2
+0 * * * * www-data cd /var/www/html && php think closeTimeoutTask >> /proc/1/fd/1 2>> /proc/1/fd/2
+0 * * * * www-data cd /var/www/html && php think trafficControlStop >> /proc/1/fd/1 2>> /proc/1/fd/2
+*/5 * * * * www-data cd /var/www/html && php think trafficControlStart >> /proc/1/fd/1 2>> /proc/1/fd/2
+

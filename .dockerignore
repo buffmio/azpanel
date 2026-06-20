@@ -1,0 +1,15 @@
+.git
+.idea
+.vscode
+.env
+.docker.env
+vendor
+runtime/*
+!runtime/.gitignore
+storage/logs
+docker/runtime
+docker/certs
+docker/certbot
+backups
+*.log
+
