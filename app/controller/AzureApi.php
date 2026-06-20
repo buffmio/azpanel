@@ -371,8 +371,7 @@ class AzureApi extends BaseController
         $account,
         $ip_name,
         $resource_group_name,
-        $location,
-        $create_ipv6
+        $location
     ) {
         // https://docs.microsoft.com/zh-cn/rest/api/virtualnetwork/public-ip-addresses
 
@@ -380,22 +379,19 @@ class AzureApi extends BaseController
         $label = Str::lower($label);
 
         $body = [
+            'sku' => [
+                'name' => 'Standard',
+                'tier' => 'Regional',
+            ],
             'location' => $location,
             'properties' => [
+                'publicIPAddressVersion' => 'IPv4',
+                'publicIPAllocationMethod' => 'Static',
                 'dnsSettings' => [
                     'domainNameLabel' => $label,
                 ],
             ],
         ];
-
-        if ($create_ipv6) {
-            $body['sku'] = [
-                'name' => 'Standard',
-                'tier' => 'Regional',
-            ];
-            $body['properties']['publicIPAddressVersion'] = 'IPv4';
-            $body['properties']['publicIPAllocationMethod'] = 'Static';
-        }
 
         $url = 'https://management.azure.com/subscriptions/' . $account->az_sub_id . '/resourceGroups/' . $resource_group_name . '/providers/Microsoft.Network/publicIPAddresses/' . $ip_name . '?api-version=2021-03-01';
 
@@ -582,6 +578,12 @@ class AzureApi extends BaseController
             ],
         ];
 
+        if ($security_group_id !== '') {
+            $body['properties']['networkSecurityGroup'] = [
+                'id' => $security_group_id,
+            ];
+        }
+
         if ($create_ipv6) {
             $body['properties']['ipConfigurations']['0']['properties']['primary'] = true;
             $body['properties']['ipConfigurations'][] = [
@@ -595,9 +597,6 @@ class AzureApi extends BaseController
                         'id' => $subnets_url,
                     ],
                 ],
-            ];
-            $body['properties']['networkSecurityGroup'] = [
-                'id' => $security_group_id,
             ];
         }
 

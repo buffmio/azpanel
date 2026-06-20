@@ -235,11 +235,11 @@ class UserAzureServer extends UserBase
 
         // 初始化创建任务
         $progress = 0;
-        $steps = ($vm_number * 6) + 6;
+        $steps = ($vm_number * 7) + 6;
         $task_id = UserTask::create(session('user_id'), '创建虚拟机', $params, $task_uuid);
 
         if ($create_ipv6) {
-            $steps += 2; // 多了创建ipv6地址和网络安全组的任务
+            $steps += $vm_number; // 每台虚拟机额外增加创建 ipv6 地址的任务
         }
 
         if ($account->reg_capacity === 0) {
@@ -404,18 +404,16 @@ class UserAzureServer extends UserBase
                     $vm_location
                 );
 
-                if ($create_ipv6) {
-                    // 创建网络安全组
-                    UserTask::update($task_id, (++$progress / $steps), '在资源组 ' . $vm_resource_group_name . ' 中创建网络安全组');
-                    sleep(2);
-                    $security_group_id = AzureApi::createNetworkSecurityGroups(
-                        $client,
-                        $account,
-                        $vm_resource_group_name,
-                        $vm_location,
-                        $security_group_name
-                    );
-                }
+                // 创建网络安全组，供 Standard SKU IPv4 与可选 IPv6 共同使用
+                UserTask::update($task_id, (++$progress / $steps), '在资源组 ' . $vm_resource_group_name . ' 中创建网络安全组');
+                sleep(2);
+                $security_group_id = AzureApi::createNetworkSecurityGroups(
+                    $client,
+                    $account,
+                    $vm_resource_group_name,
+                    $vm_location,
+                    $security_group_name
+                );
 
                 // 创建公网ipv4地址
                 sleep(2);
@@ -425,8 +423,7 @@ class UserAzureServer extends UserBase
                     $account,
                     $vm_ipv4_name,
                     $vm_resource_group_name,
-                    $vm_location,
-                    $create_ipv6
+                    $vm_location
                 );
 
                 if ($create_ipv6) {
