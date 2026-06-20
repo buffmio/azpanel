@@ -107,3 +107,4 @@ docker compose --env-file .docker.env logs -f db
 - 数据库连接失败：检查 `.env` 中 `HOSTNAME=db`，并确认 `azpanel-db` 健康。
 - Let's Encrypt 失败：确认域名解析正确，80 端口没有被宿主机其他服务占用。
 - cron 未执行：查看 `docker compose --env-file .docker.env logs app`，确认 `supervisord` 同时启动了 `php-fpm` 和 `cron`。
+- 页面 500：确认宿主机 `runtime` 和 `storage` 可被容器内 `www-data` 写入，可执行 `chown -R 33:33 runtime storage` 后重启 `app`。

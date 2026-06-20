@@ -122,7 +122,8 @@ EOF
 
 prepare_dirs() {
     mkdir -p "$NGINX_RUNTIME_DIR" "$CERT_DIR" "$CERTBOT_CONF_DIR" "$CERTBOT_WEB_DIR" "$BACKUP_DIR" runtime storage
-    chmod -R 755 runtime storage
+    chown -R 33:33 runtime storage
+    chmod -R u+rwX,g+rwX runtime storage
 }
 
 use_http_config() {
