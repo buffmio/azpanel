@@ -33,7 +33,6 @@
         "alibabacloud/client": "^1.5",
         "topthink/think-captcha": "^3.0",
         "nunomaduro/phpinsights": "^2.8",
-        "aws/aws-sdk-php": "^3.277",
         "s1lentium/iptools": "v1.2.0",
         "sentry/sentry": "^4.6"
     },
