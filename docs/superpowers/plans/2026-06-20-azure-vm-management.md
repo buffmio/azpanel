@@ -10,6 +10,20 @@
 
 ---
 
+## UI Style Constraint
+
+All new UI must strictly match the existing azpanel style. Use only the patterns already present in `app/view/user/azure/server/read.html`, `app/view/user/azure/server/index.html`, and `app/view/user/header.html`:
+
+- MDUI cards with `mdui-card` and `mdui-card-content`.
+- Existing grid classes such as `mdui-row`, `mdui-col-md-*`, and `mdui-col-sm-12`.
+- Existing MDUI form controls: `mdui-textfield`, `mdui-select`, `mdui-switch`, `mdui-table`, `mdui-dialog`.
+- Existing button style: dense raised `mdui-btn mdui-btn-raised mdui-btn-dense mdui-ripple mdui-color-blue-grey`.
+- Existing section title style: `style="color: #3F51B5; font-size: 18px"` inside cards.
+- Existing page title style: `style="color: #3F51B5; font-size: 34px"` if a new page is created.
+- Existing interactions: `mdui.confirm`, `mdui.prompt`, `mdui.alert`, jQuery AJAX, and the current task progress dialog.
+
+Do not add new CSS frameworks, new icon libraries, custom gradients, new color palettes, oversized headings, landing-page sections, decorative cards, nested cards, or explanatory tutorial copy. The new controls should look like native additions to the current VM detail page.
+
 ## File Structure
 
 - Modify `composer.json`: remove `aws/aws-sdk-php`.
@@ -946,6 +960,10 @@ git commit -m "feat: add azure vm firewall rule endpoints"
 **Files:**
 - Modify: `app/controller/UserAzureServer.php`
 - Modify: `app/view/user/azure/server/read.html`
+
+- [ ] **Step 0: Re-read existing VM detail style**
+
+Open `app/view/user/azure/server/read.html` and confirm the new cards use the same MDUI card, title, form, table, and button classes already used by the existing "调整硬盘", "调整规格", and "流量控制规则" cards. Do not create new CSS classes for the feature UI unless an existing layout bug cannot be fixed with current classes.
 
 - [ ] **Step 1: Assign images and ssh keys to detail view**
 

@@ -52,6 +52,17 @@ Routes added to `route/app.php`:
 
 The VM detail page remains the main management surface. The VM list page may expose shortcuts to the detail page, but rule editing and reimage forms live on the detail page to keep the table menu manageable.
 
+## UI Style
+
+New UI must strictly follow the existing project style:
+
+- Use the same MDUI components already used in `app/view/user/azure/server/read.html` and `app/view/user/azure/server/index.html`.
+- Use existing `mdui-card`, `mdui-card-content`, `mdui-row`, `mdui-col-*`, `mdui-textfield`, `mdui-select`, `mdui-table`, `mdui-dialog`, `mdui-btn`, `mdui-color-blue-grey`, and Material Icons patterns.
+- Keep the existing blue heading color `#3F51B5`, 18px card section titles, dense raised action buttons, and current table styling.
+- Do not introduce a new design system, new CSS framework, custom color palette, new icon library, large visual redesign, or marketing-style layout.
+- Keep interactions consistent with existing pages: MDUI confirm/prompt/alert dialogs for destructive actions, jQuery AJAX, and the existing task progress dialog pattern for long-running operations.
+- Do not add visible tutorial text beyond the short operational labels already common in the project.
+
 ## Reimage Flow
 
 The VM detail page adds a "Reinstall System" card with:
