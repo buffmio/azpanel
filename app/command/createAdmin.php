@@ -24,17 +24,25 @@ class createAdmin extends Command
 
     protected function execute(Input $input, Output $output)
     {
-        $email = trim($input->getOption('email'));
-        $passwd = trim($input->getOption('passwd'));
+        $email_option = $input->getOption('email');
+        $passwd_option = $input->getOption('passwd');
 
-        if ($email === '') {
+        if (!is_string($email_option) || trim($email_option) === '') {
             $output->writeln("<error>Please set a login email.</error>");
+            return 1;
         }
-        if ($passwd === '') {
+
+        if (!is_string($passwd_option) || trim($passwd_option) === '') {
             $output->writeln("<error>Please set a login password.</error>");
+            return 1;
         }
+
+        $email = trim($email_option);
+        $passwd = trim($passwd_option);
+
         if (!Tools::emailCheck($email)) {
             $output->writeln("<error>E-mail format is incorrect.</error>");
+            return 1;
         }
 
         $user = new User();
@@ -48,5 +56,6 @@ class createAdmin extends Command
         $user->save();
 
         $output->writeln("<info>An administrator account has been created.</info>");
+        return 0;
     }
 }

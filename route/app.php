@@ -18,7 +18,9 @@ Route::pattern([
 
 // 登入登出
 Route::get('/',                'Auth/index');
+Route::head('/',               'Auth/index');
 Route::get('/login',           'Auth/index');
+Route::head('/login',          'Auth/index');
 Route::post('/login',          'Auth/login');
 Route::post('/logout',         'Auth/logout');
 
