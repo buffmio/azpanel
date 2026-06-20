@@ -202,8 +202,8 @@ class AzureApi extends BaseController
                 $server->status = $instance_details['statuses']['1']['code'] ?? 'PowerState/running';
                 $server->location = $virtual_machine['location'];
                 $server->vm_size = $virtual_machine['properties']['hardwareProfile']['vmSize'];
-                $server->os_offer = $virtual_machine['properties']['storageProfile']['imageReference']['offer'];
-                $server->os_sku = $virtual_machine['properties']['storageProfile']['imageReference']['sku'];
+                $server->os_offer = $virtual_machine['properties']['storageProfile']['imageReference']['offer'] ?? 'unknown';
+                $server->os_sku = $virtual_machine['properties']['storageProfile']['imageReference']['sku'] ?? 'unknown';
                 $server->disk_size = $virtual_machine['properties']['storageProfile']['osDisk']['diskSizeGB'] ?? 'null';
                 $server->at_subscription_id = $params['2'];
                 $server->vm_id = $virtual_machine['properties']['vmId'];
