@@ -706,6 +706,8 @@
                     return;
                 }
                 $('#firewall_rules').empty();
+
+                // 渲染自定义规则
                 if (data.rules) {
                     for (var i = 0; i < data.rules.length; i++) {
                         var rule = data.rules[i];
@@ -718,6 +720,15 @@
                             actions = '<button class="mdui-btn mdui-btn-dense" disabled>只读</button>';
                         }
                         $('#firewall_rules').append('<tr><td>' + rule.name + '</td><td>' + rule.properties.direction + '</td><td>' + rule.properties.protocol + '</td><td>' + rule.properties.access + '</td><td>' + rule.properties.priority + '</td><td>' + rule.properties.sourceAddressPrefix + '</td><td>' + rule.properties.sourcePortRange + '</td><td>' + rule.properties.destinationAddressPrefix + '</td><td>' + rule.properties.destinationPortRange + '</td><td>' + actions + '</td></tr>');
+                    }
+                }
+
+                // 渲染默认规则（只读）
+                if (data.default_rules) {
+                    for (var j = 0; j < data.default_rules.length; j++) {
+                        var defRule = data.default_rules[j];
+                        var defActions = '<button class="mdui-btn mdui-btn-dense" disabled>默认只读</button>';
+                        $('#firewall_rules').append('<tr style="opacity: 0.6; background-color: #f5f5f5;"><td>' + defRule.name + '</td><td>' + defRule.properties.direction + '</td><td>' + defRule.properties.protocol + '</td><td>' + defRule.properties.access + '</td><td>' + defRule.properties.priority + '</td><td>' + (defRule.properties.sourceAddressPrefix || defRule.properties.sourceAddressPrefixes.join(',')) + '</td><td>' + (defRule.properties.sourcePortRange || defRule.properties.sourcePortRanges.join(',')) + '</td><td>' + (defRule.properties.destinationAddressPrefix || defRule.properties.destinationAddressPrefixes.join(',')) + '</td><td>' + (defRule.properties.destinationPortRange || defRule.properties.destinationPortRanges.join(',')) + '</td><td>' + defActions + '</td></tr>');
                     }
                 }
             },
@@ -758,6 +769,18 @@
 
     function saveFirewallRule(that) {
         let id = $(that).data('id');
+        let name = $('#firewall_name').val();
+        let prio = parseInt($('#firewall_priority').val());
+
+        if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+            mdui.alert('规则名称只允许字母、数字、下划线与短横线', '格式错误');
+            return;
+        }
+        if (isNaN(prio) || prio < 100 || prio > 4096) {
+            mdui.alert('优先级必须在 100 到 4096 之间', '格式错误');
+            return;
+        }
+
         let editing = $('#firewall_editing_name').val();
         let method = editing === '' ? 'POST' : 'PUT';
         let url = '/user/server/azure/firewall/' + id + (editing === '' ? '' : '/' + editing);
@@ -766,11 +789,11 @@
             method: method,
             url: url,
             data: {
-                name: $('#firewall_name').val(),
+                name: name,
                 direction: $('#firewall_direction').val(),
                 protocol: $('#firewall_protocol').val(),
                 access: $('#firewall_access').val(),
-                priority: $('#firewall_priority').val(),
+                priority: prio,
                 source_address: $('#firewall_source_address').val(),
                 source_port: $('#firewall_source_port').val(),
                 destination_address: $('#firewall_destination_address').val(),

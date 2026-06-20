@@ -1196,6 +1196,17 @@ class UserAzureServer extends UserBase
             return json(Tools::msg('0', '重装失败', '获取虚拟机详情失败：' . $this->azureErrorMessage($e)));
         }
 
+        // 校验是否跨操作系统类型重装
+        $current_os_type = $vm_details['properties']['storageProfile']['osDisk']['osType'] ?? 'Linux';
+        $target_is_win = Str::contains($image_key, 'Win') || Str::startsWith($image_key, 'Win');
+
+        if (strtolower($current_os_type) === 'windows' && !$target_is_win) {
+            return json(Tools::msg('0', '重装失败', 'Windows 虚拟机只能重装 Windows 镜像'));
+        }
+        if (strtolower($current_os_type) === 'linux' && $target_is_win) {
+            return json(Tools::msg('0', '重装失败', 'Linux 虚拟机只能重装 Linux 镜像'));
+        }
+
         $original_disk = $vm_details['properties']['storageProfile']['osDisk'];
         $original_disk_name = $original_disk['name'];
         $replacement_disk_name = $server->name . '_os_' . date('YmdHis');
@@ -1206,6 +1217,7 @@ class UserAzureServer extends UserBase
             'image' => $image_key,
         ], $task_uuid);
 
+        $replacement_created = false;
         $replacement_attached = false;
 
         try {
@@ -1219,7 +1231,10 @@ class UserAzureServer extends UserBase
                 $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
                 $status = $vm_status['statuses']['1']['code'] ?? 'null';
                 $count++;
-            } while ($status !== 'PowerState/deallocated' && $count < 60);
+                if ($count >= 60 && $status !== 'PowerState/deallocated') {
+                    throw new \Exception('停止虚拟机并去分配计算资源超时');
+                }
+            } while ($status !== 'PowerState/deallocated');
 
             UserTask::update($task_id, 2 / 7, '正在创建替换系统盘');
             $replacement_disk = AzureApi::createManagedDiskFromImage(
@@ -1232,6 +1247,7 @@ class UserAzureServer extends UserBase
                 $server->disk_size,
                 $original_disk['managedDisk']['storageAccountType'] ?? 'Standard_LRS'
             );
+            $replacement_created = true;
 
             UserTask::update($task_id, 3 / 7, '正在替换系统盘');
             $new_os_disk = $original_disk;
@@ -1264,7 +1280,10 @@ class UserAzureServer extends UserBase
                 $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
                 $status = $vm_status['statuses']['1']['code'] ?? 'null';
                 $count++;
-            } while ($status !== 'PowerState/running' && $count < 60);
+                if ($count >= 60 && $status !== 'PowerState/running') {
+                    throw new \Exception('启动虚拟机超时');
+                }
+            } while ($status !== 'PowerState/running');
 
             UserTask::update($task_id, 5 / 7, '正在刷新虚拟机信息');
             $fresh_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
@@ -1307,6 +1326,13 @@ class UserAzureServer extends UserBase
                     $rollback_error = $this->azureErrorMessage($rollback);
                     UserTask::end($task_id, true, ['msg' => '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error]);
                     return json(Tools::msg('0', '重装失败', '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error));
+                }
+            } elseif ($replacement_created) {
+                // 如果只创建了临时替换盘但是挂载阶段失败，在此阶段清除该独立磁盘
+                try {
+                    AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $replacement_disk_name);
+                } catch (\Throwable $cleanEx) {
+                    $error .= ' 并清理临时磁盘盘失败：' . $cleanEx->getMessage();
                 }
             }
 
@@ -1420,8 +1446,8 @@ class UserAzureServer extends UserBase
     private function buildSecurityRuleProperties(AzureServer $server, string $nsg_name, ?string $current_rule_name = null): array
     {
         $name = input('name/s');
-        if (!preg_match('/^[A-Za-z0-9_.-]+$/', $name)) {
-            throw new \Exception('规则名称只允许字母、数字、下划线、点和短横线');
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', $name)) {
+            throw new \Exception('规则名称只允许字母、数字、下划线与短横线');
         }
 
         $priority = (int) input('priority/d');
@@ -1472,11 +1498,18 @@ class UserAzureServer extends UserBase
         try {
             $nsg = $this->ensureServerNsg($server);
             $rules = AzureApi::listSecurityRules($server, $nsg['name']);
+            $nsg_details = AzureApi::getNetworkSecurityGroup($server->account_id, $server->at_subscription_id, $server->resource_group, $nsg['name']);
+            $default_rules = $nsg_details['properties']['defaultSecurityRules'] ?? [];
         } catch (\Throwable $e) {
             return json(Tools::msg('0', '读取失败', $this->azureErrorMessage($e)));
         }
 
-        return json(['status' => '1', 'nsg' => $nsg, 'rules' => $rules['value'] ?? []]);
+        return json([
+            'status' => '1',
+            'nsg' => $nsg,
+            'rules' => $rules['value'] ?? [],
+            'default_rules' => $default_rules
+        ]);
     }
 
     public function createFirewallRule($uuid)
