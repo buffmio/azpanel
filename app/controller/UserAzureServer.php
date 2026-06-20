@@ -1216,6 +1216,7 @@ class UserAzureServer extends UserBase
 
         $replacement_created = false;
         $replacement_attached = false;
+        $replacement_disk_id = null;
 
         try {
             UserTask::update($task_id, 1 / 7, '正在分离计算资源');
@@ -1245,12 +1246,10 @@ class UserAzureServer extends UserBase
                 $original_disk['managedDisk']['storageAccountType'] ?? 'Standard_LRS'
             );
             $replacement_created = true;
+            $replacement_disk_id = $replacement_disk['id'] ?? null;
 
             UserTask::update($task_id, 3 / 7, '正在替换系统盘');
-            $new_os_disk = $original_disk;
-            $new_os_disk['name'] = $replacement_disk_name;
-            $new_os_disk['managedDisk']['id'] = $replacement_disk['id'];
-            $new_os_disk['createOption'] = 'Attach';
+            $new_os_disk = $this->buildVmOsDiskUpdatePayload($original_disk, $replacement_disk_name, $replacement_disk['id']);
 
             // 替换系统盘前我们需要确保OS profile能够成功生成
             $os_profile = $this->buildOsProfile($server->name, $username, $credential_mode, $password, $ssh_key_id);
@@ -1303,11 +1302,24 @@ class UserAzureServer extends UserBase
             }
         } catch (\Throwable $e) {
             $error = $this->azureErrorMessage($e);
+            if (!$replacement_attached && $replacement_created) {
+                try {
+                    $current_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+                    $current_os_disk = $current_vm['properties']['storageProfile']['osDisk'] ?? [];
+                    if ($this->vmUsesManagedDisk($current_os_disk, $replacement_disk_name, $replacement_disk_id)) {
+                        $replacement_attached = true;
+                    }
+                } catch (\Throwable $inspectEx) {
+                }
+            }
             if ($replacement_attached) {
                 try {
                     // 回滚原磁盘
-                    $original_attached = $original_disk;
-                    $original_attached['createOption'] = 'Attach';
+                    $original_attached = $this->buildVmOsDiskUpdatePayload(
+                        $original_disk,
+                        $original_disk['name'] ?? null,
+                        $original_disk['managedDisk']['id'] ?? null
+                    );
                     AzureApi::updateVirtualMachineOsDisk(
                         $server->account_id,
                         $server->request_url,
@@ -1345,6 +1357,34 @@ class UserAzureServer extends UserBase
 
         UserTask::end($task_id, false);
         return json(Tools::msg('1', '重装结果', '重装成功'));
+    }
+
+    private function buildVmOsDiskUpdatePayload(array $disk, ?string $name = null, ?string $managed_disk_id = null): array
+    {
+        $payload = $disk;
+        unset($payload['createOption']);
+
+        if ($name !== null) {
+            $payload['name'] = $name;
+        }
+
+        if ($managed_disk_id !== null) {
+            $payload['managedDisk']['id'] = $managed_disk_id;
+        }
+
+        return $payload;
+    }
+
+    private function vmUsesManagedDisk(array $os_disk, string $disk_name, ?string $disk_id): bool
+    {
+        $current_disk_name = $os_disk['name'] ?? '';
+        $current_disk_id = $os_disk['managedDisk']['id'] ?? null;
+
+        if ($disk_id !== null && $current_disk_id === $disk_id) {
+            return true;
+        }
+
+        return $current_disk_name === $disk_name;
     }
 
     private function disableLinuxSshPasswordCommands(): array
