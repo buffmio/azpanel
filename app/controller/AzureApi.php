@@ -834,7 +834,7 @@ class AzureApi extends BaseController
         return json_decode($result->getBody(), true);
     }
 
-    public static function createManagedDiskFromImage($account_id, $subscription_id, $resource_group, $location, $disk_name, array $image, $disk_size, $storage_account_type = 'Standard_LRS'): array
+    public static function createManagedDiskFromImage($account_id, $subscription_id, $resource_group, $location, $disk_name, array $image, $disk_size, $storage_account_type = 'Standard_LRS', ?string $hyper_v_generation = null): array
     {
         $body = [
             'location' => $location,
@@ -851,6 +851,10 @@ class AzureApi extends BaseController
                 'diskSizeGB' => (int) $disk_size,
             ],
         ];
+
+        if ($hyper_v_generation !== null) {
+            $body['properties']['hyperVGeneration'] = $hyper_v_generation;
+        }
 
         $client = new Client();
         $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
@@ -869,6 +873,17 @@ class AzureApi extends BaseController
         $client->delete($url, [
             'headers' => self::getToken($account_id, true),
         ]);
+    }
+
+    public static function getManagedDisk($account_id, $subscription_id, $resource_group, $disk_name): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
     }
 
     public static function updateVirtualMachineOsDisk($account_id, $request_url, $location, array $hardware_profile, array $network_profile, array $os_disk, array $os_profile): array

@@ -1217,6 +1217,7 @@ class UserAzureServer extends UserBase
         $replacement_created = false;
         $replacement_attached = false;
         $replacement_disk_id = null;
+        $hyper_v_generation = $this->resolveVmOsDiskHyperVGeneration($server, $vm_details);
 
         try {
             UserTask::update($task_id, 1 / 7, '正在分离计算资源');
@@ -1243,7 +1244,8 @@ class UserAzureServer extends UserBase
                 $replacement_disk_name,
                 $images[$image_key],
                 $server->disk_size,
-                $original_disk['managedDisk']['storageAccountType'] ?? 'Standard_LRS'
+                $original_disk['managedDisk']['storageAccountType'] ?? 'Standard_LRS',
+                $hyper_v_generation
             );
             $replacement_created = true;
             $replacement_disk_id = $replacement_disk['id'] ?? null;
@@ -1303,14 +1305,7 @@ class UserAzureServer extends UserBase
         } catch (\Throwable $e) {
             $error = $this->azureErrorMessage($e);
             if (!$replacement_attached && $replacement_created) {
-                try {
-                    $current_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
-                    $current_os_disk = $current_vm['properties']['storageProfile']['osDisk'] ?? [];
-                    if ($this->vmUsesManagedDisk($current_os_disk, $replacement_disk_name, $replacement_disk_id)) {
-                        $replacement_attached = true;
-                    }
-                } catch (\Throwable $inspectEx) {
-                }
+                $replacement_attached = $this->detectReplacementDiskAttachment($server, $replacement_disk_name, $replacement_disk_id);
             }
             if ($replacement_attached) {
                 try {
@@ -1345,9 +1340,37 @@ class UserAzureServer extends UserBase
             } elseif ($replacement_created) {
                 // 如果只创建了临时替换盘但是挂载阶段失败，在此阶段清除该独立磁盘
                 try {
-                    AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $replacement_disk_name);
+                    $this->deleteReplacementDiskSafely($server, $replacement_disk_name, $replacement_disk_id);
                 } catch (\Throwable $cleanEx) {
-                    $error .= ' 并清理临时磁盘盘失败：' . $cleanEx->getMessage();
+                    if (!$replacement_attached && $this->detectReplacementDiskAttachment($server, $replacement_disk_name, $replacement_disk_id)) {
+                        try {
+                            $original_attached = $this->buildVmOsDiskUpdatePayload(
+                                $original_disk,
+                                $original_disk['name'] ?? null,
+                                $original_disk['managedDisk']['id'] ?? null
+                            );
+                            AzureApi::updateVirtualMachineOsDisk(
+                                $server->account_id,
+                                $server->request_url,
+                                $server->location,
+                                $vm_details['properties']['hardwareProfile'],
+                                $vm_details['properties']['networkProfile'],
+                                $original_attached,
+                                $vm_details['properties']['osProfile'] ?? []
+                            );
+                            try {
+                                AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+                            } catch (\Throwable $startEx) {
+                            }
+                            $this->deleteReplacementDiskSafely($server, $replacement_disk_name, $replacement_disk_id);
+                            UserTask::end($task_id, true, ['msg' => '重装失败，已回滚：' . $error]);
+                            return json(Tools::msg('0', '重装失败', '重装失败，已回滚：' . $error));
+                        } catch (\Throwable $rollbackAfterCleanFailure) {
+                            $error .= ' 并清理临时磁盘盘失败：' . $this->azureErrorMessage($cleanEx) . '；回滚也失败：' . $this->azureErrorMessage($rollbackAfterCleanFailure);
+                        }
+                    } else {
+                        $error .= ' 并清理临时磁盘盘失败：' . $this->azureErrorMessage($cleanEx);
+                    }
                 }
             }
 
@@ -1385,6 +1408,77 @@ class UserAzureServer extends UserBase
         }
 
         return $current_disk_name === $disk_name;
+    }
+
+    private function resolveVmOsDiskHyperVGeneration(AzureServer $server, array $vm_details): ?string
+    {
+        $hyper_v_generation = $vm_details['properties']['storageProfile']['osDisk']['hyperVGeneration'] ?? null;
+        if ($hyper_v_generation !== null) {
+            return $hyper_v_generation;
+        }
+
+        try {
+            $disk = AzureApi::getDisks($server);
+            $hyper_v_generation = $disk['properties']['hyperVGeneration'] ?? null;
+            if ($hyper_v_generation !== null) {
+                return $hyper_v_generation;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+            return $vm_status['hyperVGeneration'] ?? null;
+        } catch (\Throwable $e) {
+        }
+
+        return $vm_details['properties']['hyperVGeneration'] ?? null;
+    }
+
+    private function detectReplacementDiskAttachment(AzureServer $server, string $replacement_disk_name, ?string $replacement_disk_id): bool
+    {
+        try {
+            $current_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+            $current_os_disk = $current_vm['properties']['storageProfile']['osDisk'] ?? [];
+            if ($this->vmUsesManagedDisk($current_os_disk, $replacement_disk_name, $replacement_disk_id)) {
+                return true;
+            }
+        } catch (\Throwable $inspectEx) {
+        }
+
+        try {
+            $disk = AzureApi::getManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $replacement_disk_name);
+            $managed_by = $disk['managedBy'] ?? null;
+            return !empty($managed_by) && str_contains($managed_by, $server->name);
+        } catch (\Throwable $diskInspectEx) {
+        }
+
+        return false;
+    }
+
+    private function deleteReplacementDiskSafely(AzureServer $server, string $disk_name, ?string $disk_id): void
+    {
+        $attempts = 0;
+        while ($attempts < 5) {
+            if ($this->detectReplacementDiskAttachment($server, $disk_name, $disk_id)) {
+                throw new \Exception('临时替换盘仍附着在虚拟机上');
+            }
+
+            try {
+                AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $disk_name);
+                return;
+            } catch (\Throwable $e) {
+                $message = $this->azureErrorMessage($e);
+                if (!str_contains($message, 'being attached') && !str_contains($message, 'OperationNotAllowed')) {
+                    throw $e;
+                }
+            }
+
+            $attempts++;
+            sleep(3);
+        }
+
+        throw new \Exception('等待临时替换盘解除附着超时');
     }
 
     private function disableLinuxSshPasswordCommands(): array
