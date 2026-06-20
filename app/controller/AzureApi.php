@@ -1055,4 +1055,56 @@ class AzureApi extends BaseController
             'headers' => self::getToken($server->account_id, true),
         ]);
     }
+
+    public static function deleteVirtualMachine($account_id, $request_url): void
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com' . $request_url . '?api-version=2021-07-01';
+        $client->delete($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+    }
+
+    public static function createVirtualMachineAttached(
+        $account_id,
+        $subscription_id,
+        $resource_group,
+        $location,
+        $vm_name,
+        $vm_size,
+        $os_disk_id,
+        $os_type,
+        array $network_interfaces
+    ): array {
+        $body = [
+            'location' => $location,
+            'properties' => [
+                'hardwareProfile' => [
+                    'vmSize' => $vm_size,
+                ],
+                'storageProfile' => [
+                    'osDisk' => [
+                        'name' => $vm_name . '_osDisk',
+                        'managedDisk' => [
+                            'id' => $os_disk_id,
+                        ],
+                        'osType' => $os_type,
+                        'createOption' => 'Attach',
+                    ],
+                ],
+                'networkProfile' => [
+                    'networkInterfaces' => $network_interfaces,
+                ],
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Compute/virtualMachines/' . $vm_name . '?api-version=2021-07-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($account_id, true),
+            'json' => $body,
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
 }

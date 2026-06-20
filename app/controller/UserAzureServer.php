@@ -1206,6 +1206,12 @@ class UserAzureServer extends UserBase
 
         $original_disk = $vm_details['properties']['storageProfile']['osDisk'];
         $original_disk_name = $original_disk['name'];
+        $original_disk_id = $original_disk['managedDisk']['id'];
+        $nics_payload = $vm_details['properties']['networkProfile']['networkInterfaces'];
+        $vm_size = $vm_details['properties']['hardwareProfile']['vmSize'];
+        $os_type = $vm_details['properties']['storageProfile']['osDisk']['osType'];
+        $location = $vm_details['location'];
+
         $replacement_disk_name = $server->name . '_os_' . date('YmdHis');
         $task_id = UserTask::create(session('user_id'), '重装虚拟机系统', [
             'vm_name' => $server->name,
@@ -1214,9 +1220,15 @@ class UserAzureServer extends UserBase
             'image' => $image_key,
         ], $task_uuid);
 
+        $original_deleted = false;
         $replacement_created = false;
-        $replacement_attached = false;
+        $temp_vm_created = false;
+        $temp_vm_deleted = false;
+        $recreated_success = false;
+
         $replacement_disk_id = null;
+        $temp_vm_name = $server->name . '_temp';
+        $temp_request_url = '/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Compute/virtualMachines/' . $temp_vm_name;
         $hyper_v_generation = $this->resolveVmOsDiskHyperVGeneration($server, $vm_details);
 
         try {
@@ -1250,40 +1262,132 @@ class UserAzureServer extends UserBase
             $replacement_created = true;
             $replacement_disk_id = $replacement_disk['id'] ?? null;
 
-            UserTask::update($task_id, 3 / 7, '正在替换系统盘');
-            $new_os_disk = $this->buildVmOsDiskUpdatePayload($original_disk, $replacement_disk_name, $replacement_disk['id']);
-
-            // 替换系统盘前我们需要确保OS profile能够成功生成
-            $os_profile = $this->buildOsProfile($server->name, $username, $credential_mode, $password, $ssh_key_id);
-
-            // 同时将原 osProfile 等覆盖
-            AzureApi::updateVirtualMachineOsDisk(
-                $server->account_id,
-                $server->request_url,
-                $server->location,
-                $vm_details['properties']['hardwareProfile'],
-                $vm_details['properties']['networkProfile'],
-                $new_os_disk,
-                $os_profile
-            );
-            $replacement_attached = true;
-
-            UserTask::update($task_id, 4 / 7, '正在启动虚拟机');
-            AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
-
-            // 等待开机
+            UserTask::update($task_id, 3 / 7, '正在卸载原始计算资源');
+            AzureApi::deleteVirtualMachine($server->account_id, $server->request_url);
             $count = 0;
             do {
                 sleep(2);
+                try {
+                    AzureApi::getVirtualMachine($server->account_id, $server->request_url);
+                    $is_deleted = false;
+                } catch (\Throwable $inspectEx) {
+                    $is_deleted = true;
+                }
+                $count++;
+                if ($count >= 60 && !$is_deleted) {
+                    throw new \Exception('删除原虚拟机资源超时');
+                }
+            } while (!$is_deleted);
+            $original_deleted = true;
+
+            UserTask::update($task_id, 4 / 7, '正在挂接配置临时机');
+            AzureApi::createVirtualMachineAttached(
+                $server->account_id,
+                $server->at_subscription_id,
+                $server->resource_group,
+                $location,
+                $temp_vm_name,
+                $vm_size,
+                $replacement_disk_id,
+                $os_type,
+                $nics_payload
+            );
+            $temp_vm_created = true;
+
+            // 等待临时机处于运行状态已执行脚本/凭据修改
+            $count = 0;
+            do {
+                sleep(3);
+                $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $temp_request_url);
+                $status = $vm_status['statuses']['1']['code'] ?? 'null';
+                $count++;
+                if ($count >= 60 && $status !== 'PowerState/running') {
+                    try {
+                        AzureApi::manageVirtualMachine('start', $server->account_id, $temp_request_url);
+                    } catch (\Throwable $startEx) {}
+                    if ($count >= 90) {
+                        throw new \Exception('启动临时验证机完成超时');
+                    }
+                }
+            } while ($status !== 'PowerState/running');
+
+            // 临时重写 server 实例的 request_url 来进行 VMAccess 扩展配置
+            $temp_server = clone $server;
+            $temp_server->request_url = $temp_request_url;
+
+            if (strtolower($os_type) === 'linux') {
+                if ($credential_mode === 'ssh') {
+                    $ssh_key = SshKey::where('user_id', session('user_id'))->find($ssh_key_id);
+                    if ($ssh_key === null) {
+                        throw new \Exception('未找到可用 SSH 密钥');
+                    }
+                    AzureApi::updateLinuxVmAccess($temp_server, $username, [
+                        'ssh_key' => $ssh_key->public_key,
+                    ]);
+                    try {
+                        AzureApi::runLinuxShellCommand($temp_server, $this->disableLinuxSshPasswordCommands());
+                    } catch (\Throwable $hardening) {
+                        throw new \Exception('密钥已更新，但关闭密码登录失败：' . $this->azureErrorMessage($hardening));
+                    }
+                } else {
+                    AzureApi::updateLinuxVmAccess($temp_server, $username, [
+                        'password' => $password,
+                    ]);
+                }
+            } else {
+                AzureApi::updateWindowsVmAccess($temp_server, $username, $password);
+            }
+
+            UserTask::update($task_id, 5 / 7, '正在清理临时验证机');
+            AzureApi::deleteVirtualMachine($server->account_id, $temp_request_url);
+            $count = 0;
+            do {
+                sleep(2);
+                try {
+                    AzureApi::getVirtualMachine($server->account_id, $temp_request_url);
+                    $temp_is_deleted = false;
+                } catch (\Throwable $e) {
+                    $temp_is_deleted = true;
+                }
+                $count++;
+                if ($count >= 60 && !$temp_is_deleted) {
+                    throw new \Exception('清理临时机资源超时');
+                }
+            } while (!$temp_is_deleted);
+            $temp_vm_deleted = true;
+
+            UserTask::update($task_id, 6 / 7, '正在重建主虚拟机服务器');
+            $recreated_vm = AzureApi::createVirtualMachineAttached(
+                $server->account_id,
+                $server->at_subscription_id,
+                $server->resource_group,
+                $location,
+                $server->name,
+                $vm_size,
+                $replacement_disk_id,
+                $os_type,
+                $nics_payload
+            );
+
+            // 等待开机完成
+            $count = 0;
+            do {
+                sleep(3);
                 $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
                 $status = $vm_status['statuses']['1']['code'] ?? 'null';
                 $count++;
                 if ($count >= 60 && $status !== 'PowerState/running') {
-                    throw new \Exception('启动虚拟机超时');
+                    try {
+                        AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+                    } catch (\Throwable $startEx) {}
+                    if ($count >= 90) {
+                        throw new \Exception('重建后启动虚拟机超时');
+                    }
                 }
             } while ($status !== 'PowerState/running');
+            $recreated_success = true;
 
-            UserTask::update($task_id, 5 / 7, '正在刷新虚拟机信息');
+            UserTask::update($task_id, 7 / 7, '正在刷新本地及物理磁盘状态');
             $fresh_vm = AzureApi::getVirtualMachine($server->account_id, $server->request_url);
             $instance_details = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
             $server->vm_details = json_encode($fresh_vm);
@@ -1292,90 +1396,81 @@ class UserAzureServer extends UserBase
             $server->os_sku = $images[$image_key]['sku'];
             $server->status = $instance_details['statuses']['1']['code'] ?? 'null';
             $server->updated_at = time();
+            $server->disk_details = json_encode(AzureApi::getDisks($server));
             $server->save();
 
             try {
-                UserTask::update($task_id, 6 / 7, '正在清理旧系统盘');
                 AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $original_disk_name);
             } catch (\Throwable $deleteDiskEx) {
+                // 回收老盘失败可以作为警告记录，不阻断正常流程
                 $warnMsg = '重装系统已成功，但清理旧系统盘失败，请手动到 Azure 控制台清理旧系统盘: ' . $original_disk_name;
                 UserTask::end($task_id, false, ['msg' => $warnMsg]);
                 return json(Tools::msg('1', '重装警告', $warnMsg));
             }
         } catch (\Throwable $e) {
             $error = $this->azureErrorMessage($e);
-            if (!$replacement_attached && $replacement_created) {
-                $replacement_attached = $this->detectReplacementDiskAttachment($server, $replacement_disk_name, $replacement_disk_id);
-            }
-            if ($replacement_attached) {
+
+            // 安全回滚与清理逻辑
+            if ($temp_vm_created && !$temp_vm_deleted) {
                 try {
-                    // 回滚原磁盘
-                    $original_attached = $this->buildVmOsDiskUpdatePayload(
-                        $original_disk,
-                        $original_disk['name'] ?? null,
-                        $original_disk['managedDisk']['id'] ?? null
-                    );
-                    AzureApi::updateVirtualMachineOsDisk(
+                    AzureApi::deleteVirtualMachine($server->account_id, $temp_request_url);
+                    $count = 0;
+                    do {
+                        sleep(2);
+                        try {
+                            AzureApi::getVirtualMachine($server->account_id, $temp_request_url);
+                            $temp_is_deleted = false;
+                        } catch (\Throwable $inspectEx) {
+                            $temp_is_deleted = true;
+                        }
+                        $count++;
+                    } while (!$temp_is_deleted && $count < 30);
+                } catch (\Throwable $cleanTempEx) {}
+            }
+
+            if ($replacement_created && !$recreated_success) {
+                try {
+                    $this->deleteReplacementDiskSafely($server, $replacement_disk_name, $replacement_disk_id);
+                } catch (\Throwable $cleanDiskEx) {}
+            }
+
+            if ($original_deleted && !$recreated_success) {
+                try {
+                    // 回退创建原虚拟机并 attach 原磁盘
+                    $recreated_vm = AzureApi::createVirtualMachineAttached(
                         $server->account_id,
-                        $server->request_url,
-                        $server->location,
-                        $vm_details['properties']['hardwareProfile'],
-                        $vm_details['properties']['networkProfile'],
-                        $original_attached,
-                        $vm_details['properties']['osProfile'] ?? []
+                        $server->at_subscription_id,
+                        $server->resource_group,
+                        $location,
+                        $server->name,
+                        $vm_size,
+                        $original_disk_id,
+                        $os_type,
+                        $nics_payload
                     );
-                    // 挂接成功后可以尝试启动，若未启动或者需要清理刚才的临时空盘
                     try {
                         AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
                     } catch (\Throwable $startEx) {}
 
-                    AzureApi::deleteManagedDisk($server->account_id, $server->at_subscription_id, $server->resource_group, $replacement_disk_name);
-                    UserTask::end($task_id, true, ['msg' => '重装失败，已回滚：' . $error]);
-                    return json(Tools::msg('0', '重装失败', '重装失败，已回滚：' . $error));
+                    $vm_status = AzureApi::getAzureVirtualMachineStatus($server->account_id, $server->request_url);
+                    $server->status = $vm_status['statuses']['1']['code'] ?? 'null';
+                    $server->vm_details = json_encode($recreated_vm);
+                    $server->save();
                 } catch (\Throwable $rollback) {
                     $rollback_error = $this->azureErrorMessage($rollback);
                     UserTask::end($task_id, true, ['msg' => '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error]);
                     return json(Tools::msg('0', '重装失败', '重装失败，回滚也失败：' . $error . ' / ' . $rollback_error));
                 }
-            } elseif ($replacement_created) {
-                // 如果只创建了临时替换盘但是挂载阶段失败，在此阶段清除该独立磁盘
-                try {
-                    $this->deleteReplacementDiskSafely($server, $replacement_disk_name, $replacement_disk_id);
-                } catch (\Throwable $cleanEx) {
-                    if (!$replacement_attached && $this->detectReplacementDiskAttachment($server, $replacement_disk_name, $replacement_disk_id)) {
-                        try {
-                            $original_attached = $this->buildVmOsDiskUpdatePayload(
-                                $original_disk,
-                                $original_disk['name'] ?? null,
-                                $original_disk['managedDisk']['id'] ?? null
-                            );
-                            AzureApi::updateVirtualMachineOsDisk(
-                                $server->account_id,
-                                $server->request_url,
-                                $server->location,
-                                $vm_details['properties']['hardwareProfile'],
-                                $vm_details['properties']['networkProfile'],
-                                $original_attached,
-                                $vm_details['properties']['osProfile'] ?? []
-                            );
-                            try {
-                                AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
-                            } catch (\Throwable $startEx) {
-                            }
-                            $this->deleteReplacementDiskSafely($server, $replacement_disk_name, $replacement_disk_id);
-                            UserTask::end($task_id, true, ['msg' => '重装失败，已回滚：' . $error]);
-                            return json(Tools::msg('0', '重装失败', '重装失败，已回滚：' . $error));
-                        } catch (\Throwable $rollbackAfterCleanFailure) {
-                            $error .= ' 并清理临时磁盘盘失败：' . $this->azureErrorMessage($cleanEx) . '；回滚也失败：' . $this->azureErrorMessage($rollbackAfterCleanFailure);
-                        }
-                    } else {
-                        $error .= ' 并清理临时磁盘盘失败：' . $this->azureErrorMessage($cleanEx);
-                    }
-                }
             }
 
-            UserTask::end($task_id, true, ['msg' => $error]);
-            return json(Tools::msg('0', '重装失败', $error));
+            if (!$original_deleted) {
+                try {
+                    AzureApi::manageVirtualMachine('start', $server->account_id, $server->request_url);
+                } catch (\Throwable $startEx) {}
+            }
+
+            UserTask::end($task_id, true, ['msg' => '重装失败，已回滚：' . $error]);
+            return json(Tools::msg('0', '重装失败', '重装失败，已回滚：' . $error));
         }
 
         UserTask::end($task_id, false);
