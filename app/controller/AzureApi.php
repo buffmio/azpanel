@@ -823,4 +823,222 @@ class AzureApi extends BaseController
 
         return json_decode($result->getBody(), true);
     }
+
+    public static function getVirtualMachine($account_id, $request_url): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com' . $request_url . '?api-version=2021-07-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function createManagedDiskFromImage($account_id, $subscription_id, $resource_group, $location, $disk_name, array $image, $disk_size, $storage_account_type = 'Standard_LRS'): array
+    {
+        $body = [
+            'location' => $location,
+            'sku' => [
+                'name' => $storage_account_type,
+            ],
+            'properties' => [
+                'creationData' => [
+                    'createOption' => 'FromImage',
+                    'imageReference' => [
+                        'id' => '/subscriptions/' . $subscription_id . '/providers/Microsoft.Compute/locations/' . $location . '/publishers/' . $image['publisher'] . '/artifacttypes/vmimage/offers/' . $image['offer'] . '/skus/' . $image['sku'] . '/versions/' . $image['version'],
+                    ],
+                ],
+                'diskSizeGB' => (int) $disk_size,
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($account_id, true),
+            'json' => $body,
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function deleteManagedDisk($account_id, $subscription_id, $resource_group, $disk_name): void
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Compute/disks/' . $disk_name . '?api-version=2021-04-01';
+        $client->delete($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+    }
+
+    public static function updateVirtualMachineOsDisk($account_id, $request_url, $location, array $hardware_profile, array $network_profile, array $os_disk, array $os_profile): array
+    {
+        $body = [
+            'location' => $location,
+            'properties' => [
+                'hardwareProfile' => $hardware_profile,
+                'storageProfile' => [
+                    'osDisk' => $os_disk,
+                ],
+                'osProfile' => $os_profile,
+                'networkProfile' => $network_profile,
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com' . $request_url . '?api-version=2021-07-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($account_id, true),
+            'json' => $body,
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function updateLinuxVmAccess($server, $username, array $protected_settings): void
+    {
+        $body = [
+            'location' => $server->location,
+            'properties' => [
+                'publisher' => 'Microsoft.OSTCExtensions',
+                'type' => 'VMAccessForLinux',
+                'typeHandlerVersion' => '1.5',
+                'autoUpgradeMinorVersion' => true,
+                'settings' => [
+                    'check_disk' => 'false',
+                ],
+                'protectedSettings' => array_merge(['username' => $username], $protected_settings),
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com' . $server->request_url . '/extensions/enablevmaccess?api-version=2021-07-01';
+        $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+    }
+
+    public static function updateWindowsVmAccess($server, $username, $password): void
+    {
+        $body = [
+            'location' => $server->location,
+            'properties' => [
+                'publisher' => 'Microsoft.Compute',
+                'type' => 'VMAccessAgent',
+                'typeHandlerVersion' => '2.0',
+                'autoUpgradeMinorVersion' => true,
+                'settings' => [
+                    'username' => $username,
+                ],
+                'protectedSettings' => [
+                    'password' => $password,
+                ],
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com' . $server->request_url . '/extensions/enablevmaccess?api-version=2021-07-01';
+        $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+    }
+
+    public static function runLinuxShellCommand($server, array $commands): array
+    {
+        $body = [
+            'commandId' => 'RunShellScript',
+            'script' => $commands,
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com' . $server->request_url . '/runCommand?api-version=2021-07-01';
+        $result = $client->post($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function getNetworkSecurityGroup($account_id, $subscription_id, $resource_group, $name): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $subscription_id . '/resourceGroups/' . $resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $name . '?api-version=2022-01-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function createNetworkSecurityGroup($server, $name): array
+    {
+        $body = [
+            'location' => $server->location,
+            'properties' => [
+                'securityRules' => [],
+            ],
+        ];
+
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $name . '?api-version=2022-01-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => $body,
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function updateNetworkInterface($server, array $network_details): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkInterfaces/' . $server->network_interfaces . '?api-version=2021-03-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => [
+                'location' => $server->location,
+                'properties' => $network_details['properties'],
+            ],
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function listSecurityRules($server, $nsg_name): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $nsg_name . '/securityRules?api-version=2022-01-01';
+        $result = $client->get($url, [
+            'headers' => self::getToken($server->account_id, true),
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function saveSecurityRule($server, $nsg_name, $rule_name, array $properties): array
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $nsg_name . '/securityRules/' . $rule_name . '?api-version=2022-01-01';
+        $result = $client->put($url, [
+            'headers' => self::getToken($server->account_id, true),
+            'json' => [
+                'properties' => $properties,
+            ],
+        ]);
+
+        return json_decode($result->getBody(), true);
+    }
+
+    public static function deleteSecurityRule($server, $nsg_name, $rule_name): void
+    {
+        $client = new Client();
+        $url = 'https://management.azure.com/subscriptions/' . $server->at_subscription_id . '/resourceGroups/' . $server->resource_group . '/providers/Microsoft.Network/networkSecurityGroups/' . $nsg_name . '/securityRules/' . $rule_name . '?api-version=2022-01-01';
+        $client->delete($url, [
+            'headers' => self::getToken($server->account_id, true),
+        ]);
+    }
 }
