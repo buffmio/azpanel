@@ -18,7 +18,6 @@ The implementation stays inside the existing ThinkPHP structure and follows the 
 ## Non-Goals
 
 - Do not drop or migrate away existing AWS database tables.
-- Do not add SSH key injection to the credential reset flow in the first version.
 - Do not introduce a cloud-provider abstraction layer.
 - Do not redesign the global UI.
 
@@ -46,6 +45,7 @@ Routes added to `route/app.php`:
 
 - VM reimage.
 - VM extension create/update for credential reset.
+- VM run command for enforcing Linux SSH password authentication settings.
 - Network interface update.
 - Network security group create/get.
 - Security rule list/create/update/delete.
@@ -58,14 +58,16 @@ The VM detail page adds a "Reinstall System" card with:
 
 - Target image from `AzureList::images()`.
 - Admin username.
-- Admin password.
+- Credential mode: password or SSH key for Linux images; password only for Windows images.
+- Admin password when password mode is selected.
+- User SSH key when SSH key mode is selected.
 - Confirmation text that the OS disk data will be replaced.
 
 Server flow:
 
 1. Load `AzureServer` by `vm_id` and `user_id`.
 2. Validate image key against `AzureList::images()`.
-3. Validate username and password with the same policy used during VM creation.
+3. Validate username and the selected credential mode with the same policy used during VM creation.
 4. Create a `UserTask` named `重装虚拟机系统`.
 5. Stop and deallocate the VM if needed.
 6. Read and store the current OS disk ID, name, storage account type, delete option, image metadata, and VM model in the task parameters.
@@ -91,23 +93,42 @@ Cleanup behavior:
 
 The implementation uses explicit OS disk replacement instead of relying only on Azure VM Reimage. This is required so the application can keep a known rollback point and delete replaced resources after success.
 
+Credential behavior:
+
+- Existing VM creation already disables password authentication when an SSH key is selected by setting `linuxConfiguration.disablePasswordAuthentication` to `true`.
+- Reinstall must keep the same behavior: when SSH key mode is selected for a Linux image, inject the selected public key and set `disablePasswordAuthentication` to `true`; do not send `adminPassword`.
+- Reinstall must not offer SSH key mode for Windows images.
+- When password mode is selected, use `adminPassword` and do not set `disablePasswordAuthentication` to `true`.
+
 ## Credential Reset Flow
 
 The VM detail page adds a "Reset Credentials" card with:
 
 - OS type: Linux or Windows.
 - Username.
-- New password.
+- Credential mode for Linux: password or SSH key.
+- New password when password mode is selected.
+- User SSH key when SSH key mode is selected.
+- Password only for Windows.
 
 Server flow:
 
 1. Load `AzureServer` by `vm_id` and `user_id`.
-2. Validate username and password.
-3. For Linux, deploy or update the `VMAccessForLinux` extension.
-4. For Windows, deploy or update the `VMAccessAgent` extension.
-5. Return success after Azure accepts the extension operation.
+2. Validate username and the selected credential mode.
+3. For Linux password mode, deploy or update the `VMAccessForLinux` extension with username and password.
+4. For Linux SSH key mode, deploy or update the `VMAccessForLinux` extension with username and public key, then run a command inside the VM to set SSH password authentication to disabled and restart the SSH service.
+5. For Windows, deploy or update the `VMAccessAgent` extension with username and password.
+6. Return success after Azure accepts the extension operation and any required SSH hardening command completes.
 
-The new password is not stored in the application database or task parameters. Errors from Azure are returned to the user.
+The new password is not stored in the application database or task parameters. SSH public keys are read from the user's saved `SshKey` record and are not copied into task parameters. Errors from Azure are returned to the user.
+
+Linux SSH key reset must leave password SSH login disabled. VMAccessForLinux can update the public key, but the implementation must not rely on key injection alone as proof that password login is disabled. After SSH key reset, run a command equivalent to:
+
+- Ensure `PubkeyAuthentication yes` exists in the SSH daemon config.
+- Ensure `PasswordAuthentication no` exists in the SSH daemon config.
+- Restart `sshd` or `ssh`, depending on the distribution.
+
+If SSH key injection succeeds but SSH hardening fails, return a failure message that states the key was updated but password login may still be enabled.
 
 ## Firewall Rule Management
 
