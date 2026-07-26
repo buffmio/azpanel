@@ -4,15 +4,15 @@
 
 基线数量：89 条路由声明（84 条显式方法路由、5 条 resource 声明）、21 个 Controller 文件中的 198 个 public 方法、54 个 HTML 模板、6 个注册命令、5 个 cron 项和 6 个 `deploy.sh` 操作。
 
-危险级别：`高` 为破坏性云资源/数据/凭据操作，`中` 为认证或配置变更，`低` 为只读入口。所有条目迁移状态均为 `基线`。
+危险级别：`高` 为破坏性云资源/数据/凭据操作，`中` 为认证或配置变更，`低` 为只读入口。领域功能矩阵中的登录、注册和密码重置三行已迁移至阶段 1，其余条目仍为 `基线`。
 
 ## 领域功能矩阵
 
 | 领域 | 用户入口 | HTTP 契约 | Controller | 模板/响应 | 外部依赖 | 危险级别 | 迁移状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 认证 | `/`、`/login` | `GET|HEAD /`、`GET|HEAD /login`、`POST /login` | `Auth::index/login` | `auth/login.html`、legacy JSON | Session、验证码、登录日志 | 中 | 基线 |
-| 认证 | `/register` | `GET /register`、`POST /register/code`、`POST /register` | `Auth::registerIndex/registerCode/publicRegister` | `auth/register.html`、legacy JSON | 邮件、验证码、用户与 SSH key | 中 | 基线 |
-| 认证 | `/forget` | `GET /forget`、`POST /forget/code`、`POST /forget` | `Auth::forgetIndex/forgetCode/resetPassword` | `auth/forget.html`、legacy JSON | 邮件、验证码、用户 | 高 | 基线 |
+| 认证 | `/`、`/login` | `GET|HEAD /`、`GET|HEAD /login`、`POST /login` | `Auth::index/login` | `auth/login.html`、legacy JSON | Session、验证码、登录日志 | 中 | 已迁移（阶段 1） |
+| 认证 | `/register` | `GET /register`、`POST /register/code`、`POST /register` | `Auth::registerIndex/registerCode/publicRegister` | `auth/register.html`、legacy JSON | 邮件、验证码、用户与 SSH key | 中 | 已迁移（阶段 1） |
+| 认证 | `/forget` | `GET /forget`、`POST /forget/code`、`POST /forget` | `Auth::forgetIndex/forgetCode/resetPassword` | `auth/forget.html`、legacy JSON | 邮件、验证码、用户 | 高 | 已迁移（阶段 1） |
 | 认证 | 退出 | `POST /logout` | `Auth::logout` | legacy JSON | Session | 中 | 基线 |
 | 用户首页 | `/user`、登录日志 | `GET /user`、`GET /user/login` | `UserDashboard::index/loginLog` | `user/index.html`、`user/loginlog.html` | 公告、登录日志 | 低 | 基线 |
 | 个人资料 | `/user/profile` | `GET /user/profile`；4 个资料 `PUT` | `UserDashboard::profile/saveNotify/savePasswd/saveRefresh/savePersonalise` | `user/profile.html`、legacy JSON | 用户、通知设置、自动刷新 | 中 | 基线 |
