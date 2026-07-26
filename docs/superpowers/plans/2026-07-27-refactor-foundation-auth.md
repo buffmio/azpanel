@@ -6,7 +6,7 @@
 
 **Architecture:** 应用继续使用 ThinkPHP 服务端渲染。PHPUnit 锁定 HTTP 源契约和模板结构，原生 ES Modules 提供统一的表单请求与反馈能力；认证 Controller 和数据库行为在本阶段保持不变，以便先建立可信基线。
 
-**Tech Stack:** PHP 8.0+、ThinkPHP 8、PHPUnit 9.6、原生 CSS、原生 ES Modules、Node.js 18+ 内置测试运行器。
+**Tech Stack:** PHP 8.2+、ThinkPHP 8、PHPUnit 9.6、原生 CSS、原生 ES Modules、Node.js 18+ 内置测试运行器。
 
 ## Global Constraints
 
@@ -16,6 +16,7 @@
 - 浅色主题为唯一交付主题；Token 必须允许后续增加深色主题。
 - 模板默认转义；现有管理员自定义页脚脚本行为在本阶段保持兼容并记录为受信任管理员能力。
 - 每项修改先写失败测试，再写最小实现；每个任务独立提交。
+- 人类裁决（2026-07-27）：最低 PHP 版本提高至 8.2，以匹配锁定依赖的兼容性要求。
 
 ## Delivery Sequence
 
@@ -58,7 +59,7 @@
 - Create: `tests/Contract/.gitkeep`
 
 **Interfaces:**
-- Consumes: PHP 8.0+ and the existing Composer project.
+- Consumes: PHP 8.2+ and the existing Composer project.
 - Produces: `composer test`, `composer analyse`, and a committed dependency lock used by every later task.
 
 - [ ] **Step 1: Write the initially failing PHPUnit configuration check**
