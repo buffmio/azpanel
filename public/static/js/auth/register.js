@@ -15,7 +15,11 @@ form?.addEventListener('submit', async event => {
 
   try {
     const fields = Object.fromEntries(new FormData(form));
-    fields.hcaptcha_result = form.querySelector('[name="h-captcha-response"]')?.value ?? '';
+    fields.verify_code ??= '';
+    fields.code ??= '';
+    fields.hcaptcha_result = form.querySelector('[name="h-captcha-response"]')?.value
+      ?? fields.hcaptcha_result
+      ?? '';
     delete fields['h-captcha-response'];
     const response = await postForm(form.action, fields);
     showNotice(response);

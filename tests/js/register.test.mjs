@@ -4,30 +4,94 @@ import { pathToFileURL } from 'node:url';
 import { installAuthPage, preserveBrowserGlobals } from './auth-page-test-helper.mjs';
 
 const registerScript = pathToFileURL(`${process.cwd()}/public/static/js/auth/register.js`).href;
-const registerFields = [
+const credentialFields = [
   ['email', 'new@example.com'],
   ['passwd', 'secret'],
-  ['repeat_passwd', 'secret'],
-  ['verify_code', '123456'],
-  ['code', 'captcha'],
+  ['repeat_passwd', 'secret']
+];
+const emailVerificationFields = [
+  ...credentialFields,
+  ['verify_code', '123456']
+];
+const hcaptchaFields = [
+  ...emailVerificationFields,
   ['hcaptcha_result', ''],
   ['h-captcha-response', 'hcaptcha-token']
 ];
+
+const registrationFieldScenarios = [
+  {
+    name: 'email verification disabled',
+    fields: credentialFields,
+    expected: { verify_code: '', code: '', hcaptcha_result: '' }
+  },
+  {
+    name: 'image captcha disabled',
+    fields: emailVerificationFields,
+    expected: { verify_code: '123456', code: '', hcaptcha_result: '' }
+  },
+  {
+    name: 'ThinkCaptcha enabled',
+    fields: [...emailVerificationFields, ['code', 'captcha']],
+    expected: { verify_code: '123456', code: 'captcha', hcaptcha_result: '' }
+  },
+  {
+    name: 'hCaptcha enabled',
+    fields: hcaptchaFields,
+    hcaptchaResponse: 'hcaptcha-token',
+    expected: { verify_code: '123456', code: '', hcaptcha_result: 'hcaptcha-token' }
+  }
+];
+
+for (const [index, scenario] of registrationFieldScenarios.entries()) {
+  test(`register normalizes legacy fields when ${scenario.name}`, async () => {
+    const restoreGlobals = preserveBrowserGlobals();
+    const page = installAuthPage({
+      action: '/register',
+      fields: scenario.fields,
+      formSelector: '[data-auth-register]',
+      hcaptchaResponse: scenario.hcaptchaResponse
+    });
+    let requestFields;
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, '/register');
+      requestFields = Object.fromEntries(init.body);
+      return new Response(JSON.stringify({ status: '0', title: '测试', content: '不跳转' }), {
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    globalThis.window = { location: { assign() { throw new Error('unexpected redirect'); } } };
+
+    try {
+      await import(`${registerScript}?legacy-fields-${index}`);
+      await page.listeners.submit({ preventDefault() {} });
+
+      assert.deepEqual(requestFields, {
+        email: 'new@example.com',
+        passwd: 'secret',
+        repeat_passwd: 'secret',
+        ...scenario.expected
+      });
+    } finally {
+      restoreGlobals();
+    }
+  });
+}
 
 test('register maps hCaptcha and stays disabled until the successful redirect', async () => {
   const restoreGlobals = preserveBrowserGlobals();
   const page = installAuthPage({
     action: '/register',
-    fields: registerFields,
+    fields: hcaptchaFields,
     formSelector: '[data-auth-register]',
     hcaptchaResponse: 'hcaptcha-token'
   });
   const redirects = [];
   const redirectTimers = [];
-  let requestBody;
+  let requestFields;
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/register');
-    requestBody = init.body.toString();
+    requestFields = Object.fromEntries(init.body);
     return new Response(JSON.stringify({ status: '1', title: '注册成功', content: '即将跳转' }), {
       headers: { 'content-type': 'application/json' }
     });
@@ -45,10 +109,14 @@ test('register maps hCaptcha and stays disabled until the successful redirect', 
     await import(`${registerScript}?successful-redirect`);
     await page.listeners.submit({ preventDefault() {} });
 
-    assert.equal(
-      requestBody,
-      'email=new%40example.com&passwd=secret&repeat_passwd=secret&verify_code=123456&code=captcha&hcaptcha_result=hcaptcha-token'
-    );
+    assert.deepEqual(requestFields, {
+      email: 'new@example.com',
+      passwd: 'secret',
+      repeat_passwd: 'secret',
+      verify_code: '123456',
+      code: '',
+      hcaptcha_result: 'hcaptcha-token'
+    });
     assert.equal(page.submit.disabled, true);
     assert.equal(page.submit.attributes.get('aria-busy'), 'true');
     assert.equal(page.title.textContent, '注册成功');
@@ -65,7 +133,7 @@ test('register restores the submit button after a rejected response', async () =
   const restoreGlobals = preserveBrowserGlobals();
   const page = installAuthPage({
     action: '/register',
-    fields: registerFields,
+    fields: emailVerificationFields,
     formSelector: '[data-auth-register]'
   });
   globalThis.fetch = async () => new Response(
@@ -91,7 +159,7 @@ test('register ignores repeated verification-code requests and restores the butt
   const restoreGlobals = preserveBrowserGlobals();
   const page = installAuthPage({
     action: '/register',
-    fields: registerFields,
+    fields: emailVerificationFields,
     formSelector: '[data-auth-register]'
   });
   let calls = 0;
@@ -134,7 +202,7 @@ test('register restores the submit button and reports an unexpected request erro
   const restoreGlobals = preserveBrowserGlobals();
   const page = installAuthPage({
     action: '/register',
-    fields: registerFields,
+    fields: credentialFields,
     formSelector: '[data-auth-register]'
   });
   globalThis.fetch = async () => {
