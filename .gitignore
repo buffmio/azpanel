@@ -1,5 +1,7 @@
 /.idea
 /.vscode
+/.worktrees
+/.superpowers
 /vendor
 *.log
 .env
