@@ -13,8 +13,8 @@
 - `npm run check:js`：新 JS 文件语法全部有效。
 - `php think run --host 127.0.0.1 --port 8080`：应用可启动。
 - `/login`：邮箱、密码、两类验证码条件分支及失败反馈可用。
-- `/register`：关闭注册、邮箱验证码、两类图形验证码及成功跳转可用。
-- `/forget`：验证码获取、密码不一致、错误验证码及成功跳转可用。
+- `/register`：关闭注册、邮箱验证码、两类图形验证码、后端成功及 JS navigation 回调分别验证。
+- `/forget`：验证码获取、密码不一致、错误验证码、后端成功及 JS navigation 回调分别验证。
 - 视口 `390×844`、`768×1024`、`1440×900`：无不可达控件和意外横向滚动。
 
 ## 自动化验证
@@ -28,6 +28,322 @@
 | JS 语法 | `npm run check:js` | 新 JS 文件语法全部有效 | 通过 | 退出码 0；目标 JS 文件均通过 `node --check`。 |
 | 部署脚本语法 | `bash -n deploy.sh` | shell 语法检查通过 | 通过 | 退出码 0，无输出。 |
 | Compose 配置 | `docker compose config` | Compose 配置可解析 | 通过 | 首次因缺少本地 `.docker.env` 和数据库变量退出 1；创建仅用于验证的占位 `.env`、`.docker.env` 后，原命令退出 0 并输出完整配置。验证文件随后删除。未启动整套 Compose。 |
+
+## 可复现实验命令
+
+以下命令均从仓库根目录运行，变量和凭据仅用于一次性本地验证。Docker daemon 无法 bind mount 当前 devcontainer 路径，因此没有运行 `docker compose up`；`docker build` 会把构建上下文传给 daemon，并由 Dockerfile 的 `COPY . .` 将源码复制进镜像，不依赖运行时 bind mount。HTTP 请求也从应用容器内部发出，避免把 daemon 主机端口误当成 devcontainer 本机端口。
+
+### Compose 配置解析
+
+先创建仅用于插值和 `env_file` 校验的安全占位配置：
+
+```bash
+cat > .env <<'EOF'
+DB_ROOT_PASSWORD=local-root-only
+DB_DATABASE=azpanel_verify
+DB_USERNAME=azpanel_verify
+DB_PASSWORD=local-only
+EOF
+
+cat > .docker.env <<'EOF'
+APP_DEBUG=true
+DATABASE_TYPE=mysql
+DATABASE_HOSTNAME=db
+DATABASE_DATABASE=azpanel_verify
+DATABASE_USERNAME=azpanel_verify
+DATABASE_PASSWORD=local-only
+DATABASE_HOSTPORT=3306
+EOF
+
+docker compose config
+unlink .env .docker.env
+```
+
+关键实际结果：首次在两个文件不存在时退出 1，并报告 `.docker.env` 不存在；使用以上占位文件后退出 0，输出 `app`、`web`、`db` 三个服务及完整 volumes/networks 配置。
+
+### 宿主开发服务器探测
+
+在一个终端启动简报指定的原命令：
+
+```bash
+php think run --host 127.0.0.1 --port 8080
+```
+
+在第二个终端检查 PHP 扩展和页面，再用 `Ctrl-C` 停止开发服务器：
+
+```bash
+php -m | rg 'PDO|pdo_mysql'
+curl --silent --output /tmp/phase1-host-login \
+  --write-out 'HTTP %{http_code}\n' \
+  http://127.0.0.1:8080/login
+rg -o 'could not find driver' /tmp/phase1-host-login
+```
+
+关键实际结果：启动命令显示 `ThinkPHP Development server is started`；本机仅列出 PDO core、没有 `pdo_mysql`，`/login` 返回 HTTP 500 和 `could not find driver`。因此后续数据库相关 HTTP 验证转入包含项目 Dockerfile 所声明扩展的镜像。
+
+### 一次性应用与数据库
+
+构建复制当前源码的本地镜像，创建专用 network 和 MariaDB：
+
+```bash
+docker build --tag azpanel-phase1-app:local .
+docker network create azpanel-phase1-net
+
+docker run --rm -d \
+  --name azpanel-phase1-db \
+  --network azpanel-phase1-net \
+  -e MARIADB_ROOT_PASSWORD=phase1-root \
+  -e MARIADB_DATABASE=azpanel_phase1 \
+  -e MARIADB_USER=azpanel_phase1 \
+  -e MARIADB_PASSWORD=phase1-only \
+  mariadb:10.11-jammy
+
+for attempt in $(seq 1 30); do
+  if docker exec azpanel-phase1-db \
+    mariadb-admin ping -h 127.0.0.1 -uroot -pphase1-root --silent
+  then
+    break
+  fi
+  sleep 1
+done
+
+docker exec -i azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 \
+  < database/azure.sql
+docker exec -i azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 \
+  < database/config.sql
+
+docker exec -i azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 <<'SQL'
+INSERT INTO config (item,value,class,default_value,type) VALUES
+  ('registration_verification_code','0','verification_code','0','bool'),
+  ('login_verification_code','0','verification_code','0','bool'),
+  ('reset_password_verification_code','0','verification_code','0','bool'),
+  ('create_virtual_machine_verification_code','0','verification_code','0','bool'),
+  ('captcha_provider','think-captcha','verification_code','think-captcha','string'),
+  ('hcaptcha_site_key','','verification_code','','string'),
+  ('hcaptcha_secret','','verification_code','','string'),
+  ('custom_text','phase-1','custom','phase-1','string'),
+  ('custom_script','','custom','','string');
+UPDATE config SET value='127.0.0.1' WHERE item='smtp_host';
+UPDATE config SET value='' WHERE item IN ('smtp_username','smtp_password');
+UPDATE config SET value='1025' WHERE item='smtp_port';
+UPDATE config SET value='AZPanel Phase 1' WHERE item='smtp_name';
+UPDATE config SET value='noreply@example.test' WHERE item='smtp_sender';
+SQL
+
+docker run --rm -d \
+  --name azpanel-phase1-app-run \
+  --network azpanel-phase1-net \
+  -e APP_DEBUG=true \
+  -e DATABASE_TYPE=mysql \
+  -e DATABASE_HOSTNAME=azpanel-phase1-db \
+  -e DATABASE_DATABASE=azpanel_phase1 \
+  -e DATABASE_USERNAME=azpanel_phase1 \
+  -e DATABASE_PASSWORD=phase1-only \
+  -e DATABASE_HOSTPORT=3306 \
+  azpanel-phase1-app:local \
+  sh -lc 'python3 -m smtpd -n -c DebuggingServer 127.0.0.1:1025 & exec php think run --host 0.0.0.0 --port 8080'
+```
+
+关键实际结果：镜像构建退出 0，MariaDB 就绪，应用日志显示 PHP 8.3.32 development server 启动。应用容器到 `azpanel-phase1-db:3306` 的连接成功；三个页面在应用容器内均返回 HTTP 200：
+
+```bash
+docker exec azpanel-phase1-app-run sh -lc '
+for path in login register forget; do
+  curl --silent --output /dev/null --write-out "/$path HTTP %{http_code}\n" \
+    "http://127.0.0.1:8080/$path"
+done
+'
+```
+
+实际输出为 `/login HTTP 200`、`/register HTTP 200`、`/forget HTTP 200`。
+
+### 登录场景
+
+无图形验证码、错误密码与成功登录：
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='0' WHERE item='login_verification_code';
+   UPDATE config SET value='think-captcha' WHERE item='captcha_provider';"
+
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/login |
+   grep -E "data-auth-login|name=\"email\"|name=\"password\"|name=\"code\"|name=\"hcaptcha_result\""'
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/register |
+   grep -E "data-auth-register|name=\"code\"|name=\"hcaptcha_result\""'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=&password=' \
+  http://127.0.0.1:8080/login
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&passwd=phase1-pass&repeat_passwd=phase1-pass&verify_code=&code=&hcaptcha_result=' \
+  http://127.0.0.1:8080/register
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&password=wrong&code=&hcaptcha_result=' \
+  http://127.0.0.1:8080/login
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&password=phase1-pass&code=&hcaptcha_result=' \
+  http://127.0.0.1:8080/login
+```
+
+关键实际结果：登录页面包含邮箱、密码和 `data-auth-login`，但不含两类验证码字段；注册页面不含两类验证码字段；响应依次为“邮箱或密码不能为空”、“注册成功”、“密码不正确”和“登录成功”。
+
+ThinkCaptcha 与 hCaptcha 条件分支：
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='1' WHERE item='login_verification_code';
+   UPDATE config SET value='think-captcha' WHERE item='captcha_provider';"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/login |
+   grep -E "name=\"code\"|/captcha"'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&password=phase1-pass&code=wrong' \
+  http://127.0.0.1:8080/login
+
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='hcaptcha' WHERE item='captcha_provider';"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/login |
+   grep -E "name=\"hcaptcha_result\"|class=\"h-captcha\"|js.hcaptcha.com"'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&password=phase1-pass&hcaptcha_result=' \
+  http://127.0.0.1:8080/login
+```
+
+关键实际结果：两个 GET 分别渲染 `code`/captcha 图片和 `hcaptcha_result`/widget/官方脚本；POST 分别返回“验证码错误”和“请完成验证码”。未提交真实 hCaptcha token。
+
+### 注册场景
+
+关闭注册的页面与直接 POST：
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='0' WHERE item IN
+     ('allow_public_reg','reg_email_veriy','registration_verification_code');"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/register |
+   grep -E "管理员未开放公共注册|data-auth-register"'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=closed@example.test&passwd=closed-pass&repeat_passwd=closed-pass&verify_code=&code=&hcaptcha_result=' \
+  http://127.0.0.1:8080/register
+```
+
+关键实际结果：GET 显示关闭文案且无表单；直接 POST 却返回“注册成功”，因此该项未通过。
+
+邮箱验证码请求与后续消费：
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='1' WHERE item IN ('allow_public_reg','reg_email_veriy');
+   UPDATE config SET value='0' WHERE item='registration_verification_code';"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/register |
+   grep -E "name=\"verify_code\"|data-request-code=\"/register/code\""'
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent --output /tmp/register-code-response --write-out "HTTP %{http_code}\n" \
+   -X POST -d "email=regmail@example.test" \
+   http://127.0.0.1:8080/register/code;
+   grep -Eo "SMTP Error:[^<]+" /tmp/register-code-response | head -n 1'
+
+register_code=$(docker exec azpanel-phase1-db \
+  mariadb -N -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "SELECT code FROM verify WHERE email='regmail@example.test' ORDER BY id DESC LIMIT 1;")
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  --data-urlencode 'email=regmail@example.test' \
+  --data-urlencode 'passwd=email-pass' \
+  --data-urlencode 'repeat_passwd=email-pass' \
+  --data-urlencode "verify_code=$register_code" \
+  --data-urlencode 'code=' \
+  --data-urlencode 'hcaptcha_result=' \
+  http://127.0.0.1:8080/register
+```
+
+关键实际结果：本地 SMTP sink 因强制 STARTTLS 返回 HTTP 500；发送前写入的一次性验证码仍可被消费，注册 POST 返回“注册成功”。
+
+两类图形验证码失败反馈：
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='0' WHERE item='reg_email_veriy';
+   UPDATE config SET value='1' WHERE item='registration_verification_code';
+   UPDATE config SET value='think-captcha' WHERE item='captcha_provider';"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/register |
+   grep -E "name=\"code\"|/captcha"'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=think@example.test&passwd=test-pass&repeat_passwd=test-pass&code=wrong' \
+  http://127.0.0.1:8080/register
+
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='hcaptcha' WHERE item='captcha_provider';"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/register |
+   grep -E "name=\"hcaptcha_result\"|class=\"h-captcha\"|js.hcaptcha.com"'
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=hcaptcha@example.test&passwd=test-pass&repeat_passwd=test-pass&hcaptcha_result=' \
+  http://127.0.0.1:8080/register
+```
+
+关键实际结果分别为“图像验证码错误”和“请完成图像验证码填写”。
+
+### 密码重置场景
+
+```bash
+docker exec azpanel-phase1-db \
+  mariadb -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "UPDATE config SET value='1' WHERE item='reg_email_veriy';
+   UPDATE config SET value='0' WHERE item IN
+     ('login_verification_code','registration_verification_code');"
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent http://127.0.0.1:8080/forget |
+   grep -E "data-auth-forget|name=\"email\"|name=\"passwd\"|name=\"repeat_passwd\"|name=\"verify_code\"|data-request-code=\"/forget/code\""'
+docker exec azpanel-phase1-app-run sh -lc \
+  'curl --silent --output /tmp/forget-code-response --write-out "HTTP %{http_code}\n" \
+   -X POST -d "email=phase1@example.test" \
+   http://127.0.0.1:8080/forget/code;
+   grep -Eo "SMTP Error:[^<]+" /tmp/forget-code-response | head -n 1'
+
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&passwd=new-pass&repeat_passwd=other-pass&verify_code=wrong' \
+  http://127.0.0.1:8080/forget
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&passwd=new-pass&repeat_passwd=new-pass&verify_code=wrong' \
+  http://127.0.0.1:8080/forget
+
+forget_code=$(docker exec azpanel-phase1-db \
+  mariadb -N -uazpanel_phase1 -pphase1-only azpanel_phase1 -e \
+  "SELECT code FROM verify WHERE email='phase1@example.test' ORDER BY id DESC LIMIT 1;")
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  --data-urlencode 'email=phase1@example.test' \
+  --data-urlencode 'passwd=new-pass' \
+  --data-urlencode 'repeat_passwd=new-pass' \
+  --data-urlencode "verify_code=$forget_code" \
+  http://127.0.0.1:8080/forget
+docker exec azpanel-phase1-app-run curl --silent -X POST \
+  -d 'email=phase1@example.test&password=new-pass' \
+  http://127.0.0.1:8080/login
+```
+
+关键实际结果：验证码请求因本地 sink 的 STARTTLS 限制返回 HTTP 500；其余响应依次为“两次输入的密码不符”、“验证码不相符”、“重置成功”和“登录成功”。
+
+清理所有一次性资源：
+
+```bash
+docker rm -f azpanel-phase1-app-run azpanel-phase1-db
+docker network rm azpanel-phase1-net
+docker image rm azpanel-phase1-app:local
+```
 
 ## 认证冒烟检查
 
@@ -49,11 +365,15 @@
 | `/register` 无图形验证码 | 关闭图形验证码时注册请求不要求图形验证码字段 | 通过 | 页面不含两类图形验证码字段；隔离数据库中 POST 返回“注册成功”。 |
 | `/register` ThinkCaptcha | 选择 `think-captcha` 时显示并提交 `code`，错误验证码有失败反馈 | 通过 | 页面包含 `name="code"` 和 captcha 图片；错误值 POST 返回“图像验证码错误”。 |
 | `/register` hCaptcha | 选择 `hcaptcha` 时显示并提交 `hcaptcha_result`，失败反馈可见 | 通过 | 页面包含隐藏字段、widget 和官方脚本；空 token POST 在本地短路并返回“请完成图像验证码填写”。未用真实 token 调用外部 siteverify。 |
-| `/register` 成功跳转 | 一次性数据库和隔离通知配置下成功注册后跳转到预期页面 | 通过 | 后端 POST 返回“注册成功”；JS 测试验证成功响应后调用 `window.location.assign('/login')`。 |
+| `/register` 后端成功 | 一次性数据库和隔离通知配置下成功注册 | 通过 | 后端 POST 返回 `{"status":"1","title":"注册结果","content":"注册成功"}`。 |
+| `/register` JS navigation 回调 | 成功响应后安排 1500ms navigation 回调 | 通过 | `register.test.mjs` 的 `setTimeout` stub 只在 `milliseconds === 1500` 时记录 callback；断言恰有一个 callback，执行后断言 `window.location.assign('/login')`。 |
+| `/register` 真实浏览器跳转 | 浏览器中提交成功后实际跳转 `/login` | 未运行 | 当前环境没有可调用浏览器；后端 curl 与 Node 模块测试不能替代真实浏览器 navigation。 |
 | `/forget` 验证码获取 | 可请求密码重置验证码；不发送到真实邮件服务 | 阻塞 | `/forget/code` 在一次性数据库写入有效 reset code，但本地 SMTP sink 因强制 STARTTLS 返回 HTTP 500；未连接真实邮件服务。请求按钮与失败恢复由 JS 测试覆盖。 |
 | `/forget` 密码不一致 | 两次密码不一致时显示失败反馈并允许再次提交 | 通过 | POST 返回“两次输入的密码不符”；JS 测试验证失败后恢复提交按钮。 |
 | `/forget` 错误验证码 | 错误邮箱验证码时显示失败反馈并允许再次提交 | 通过 | POST 返回“验证码不相符”；JS 测试验证失败反馈与按钮恢复。 |
-| `/forget` 成功跳转 | 一次性数据库和隔离通知配置下成功重置后跳转到预期页面 | 通过 | 使用一次性数据库验证码 POST 返回“重置成功”，随后新密码登录成功；JS 测试验证跳转 `/login`。 |
+| `/forget` 后端成功 | 一次性数据库验证码可完成重置，新密码可登录 | 通过 | POST 返回 `{"status":"1","title":"重置结果","content":"重置成功"}`，随后新密码登录返回“登录成功”。 |
+| `/forget` JS navigation 回调 | 成功响应后安排 1500ms navigation 回调 | 通过 | `forget.test.mjs` 的 `setTimeout` stub 只在 `milliseconds === 1500` 时记录 callback；断言恰有一个 callback，执行后断言 `window.location.assign('/login')`。 |
+| `/forget` 真实浏览器跳转 | 浏览器中重置成功后实际跳转 `/login` | 未运行 | 当前环境没有可调用浏览器；后端 curl 与 Node 模块测试不能替代真实浏览器 navigation。 |
 | 响应式视口 | 在 `390×844`、`768×1024`、`1440×900` 检查三个页面，无不可达控件和意外横向滚动 | 未运行 | 当前环境未安装可调用的 Chromium/Chrome，也没有浏览器工具；未把模板检查或 Node DOM stub 冒充真实布局验证。 |
 
 ## 未覆盖的外部或浏览器验证
