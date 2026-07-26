@@ -39,7 +39,8 @@
     "require-dev": {
         "symfony/var-dumper": "^7.0",
         "topthink/think-trace":"^1.0",
-        "phpstan/phpstan": "^2.1"
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^9.6"
     },
     "autoload": {
         "psr-4": {
@@ -59,6 +60,8 @@
         "post-autoload-dump": [
             "@php think service:discover",
             "@php think vendor:publish"
-        ]
+        ],
+        "test": "phpunit --configuration phpunit.xml",
+        "analyse": "phpstan analyse app --memory-limit=1G"
     }
 }
