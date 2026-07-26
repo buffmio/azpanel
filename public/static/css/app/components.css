@@ -1,0 +1,12 @@
+.az-button { min-height: 2.75rem; border: 1px solid var(--az-color-border); border-radius: var(--az-radius-md); padding: 0 var(--az-space-4); background: var(--az-color-surface); color: var(--az-color-text); font: inherit; cursor: pointer; }
+.az-button--primary { border-color: var(--az-color-primary); background: var(--az-color-primary); color: #fff; }
+.az-button--primary:hover { background: var(--az-color-primary-hover); }
+.az-button:focus-visible { box-shadow: var(--az-focus-ring); }
+.az-button:disabled, .az-button[aria-busy="true"] { cursor: wait; opacity: .62; }
+.az-field { display: grid; gap: var(--az-space-2); }
+.az-input { width: 100%; min-height: 2.75rem; border: 1px solid var(--az-color-border); border-radius: var(--az-radius-md); padding: 0 var(--az-space-3); background: var(--az-color-surface); color: var(--az-color-text); font: inherit; }
+.az-input:focus-visible { box-shadow: var(--az-focus-ring); }
+.az-input:disabled, .az-input[aria-busy="true"] { cursor: wait; opacity: .62; }
+.az-card { border: 1px solid var(--az-color-border); border-radius: var(--az-radius-lg); background: var(--az-color-surface); box-shadow: var(--az-shadow-md); }
+.az-alert { border-radius: var(--az-radius-md); padding: var(--az-space-3); }
+.az-dialog { max-width: 28rem; border: 0; border-radius: var(--az-radius-lg); padding: var(--az-space-6); box-shadow: var(--az-shadow-md); }

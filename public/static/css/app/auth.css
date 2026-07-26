@@ -1,0 +1,5 @@
+.az-auth { display: grid; min-height: calc(100vh - 4rem); place-items: center; padding: var(--az-space-6); }
+.az-auth__panel { width: min(100%, 28rem); padding: var(--az-space-8); }
+.az-auth__form { display: grid; gap: var(--az-space-4); }
+.az-auth__footer { padding: var(--az-space-4); color: var(--az-color-muted); text-align: center; }
+@media (max-width: 40rem) { .az-auth { padding: var(--az-space-3); } .az-auth__panel { padding: var(--az-space-6); } }
