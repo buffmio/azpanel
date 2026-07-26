@@ -24,4 +24,16 @@ final class AuthTemplateContractTest extends TestCase
         self::assertStringContainsString("Config::obtain('custom_text')", $footer);
         self::assertStringContainsString("Config::obtain('custom_script')", $footer);
     }
+
+    public function testLoginFormPreservesFieldsAndEndpoint(): void
+    {
+        $html = file_get_contents(dirname(__DIR__, 2) . '/app/view/auth/login.html');
+        foreach (['name="email"', 'name="password"', 'name="code"', 'name="hcaptcha_result"'] as $field) {
+            self::assertStringContainsString($field, $html);
+        }
+        self::assertStringContainsString('action="/login"', $html);
+        self::assertStringContainsString('method="post"', $html);
+        self::assertStringContainsString('/static/js/auth/login.js', $html);
+        self::assertStringNotContainsString('$.ajax', $html);
+    }
 }

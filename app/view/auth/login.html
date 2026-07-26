@@ -1,79 +1,41 @@
 {include file="../app/view/auth/header.html" title="登录" /}
 
-<div class="mdui-container-fluid">
-    <div class="mdui-row">
-        <div class="mdui-col-xs-12 mdui-col-md-4 mdui-col-offset-md-4">
-            <div class="mdui-card" style="transform: translateY(25%)">
-                <div class="mdui-card-content">
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">account_circle</i>
-                        <label class="mdui-textfield-label">注册邮箱</label>
-                        <input class="mdui-textfield-input" type="text" id="email" required />
-                    </div>
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">lock</i>
-                        <label class="mdui-textfield-label">登录密码</label>
-                        <input class="mdui-textfield-input" type="password" id="password" required />
-                    </div>
-                    {if $verify.login_verification_code == '1'}
-                    {if $verify.captcha_provider == 'think-captcha'}
-                    <div class="mdui-row">
-                        <div class="mdui-textfield mdui-textfield-floating-label mdui-col-xs-6">
-                            <i class="mdui-icon material-icons">code</i>
-                            <label class="mdui-textfield-label">验证码</label>
-                            <input class="mdui-textfield-input" type="text" id="code" required />
-                        </div>
-                        <div class="mdui-col-xs-4 mdui-m-t-2">
-                            {:captcha_img()}
-                        </div>
-                    </div>
-                    {/if}
-                    {if $verify.captcha_provider == 'hcaptcha'}
-                    <div class="mdui-m-t-2 h-captcha" data-sitekey="{$verify.hcaptcha_site_key}"></div>
-                    {/if}
-                    {/if}
-                    <div class="mdui-card-actions">
-                        <button id="login"
-                            class="mdui-btn mdui-btn-block mdui-color-indigo mdui-ripple mdui-btn-raised">
-                            登录
-                        </button>
-                        <a href="/forget" class="mdui-m-t-2 mdui-btn mdui-btn-raised mdui-ripple mdui-color-indigo">
-                            重置密码
-                        </a>
-                        <a href="/register"
-                            class="mdui-m-t-2 mdui-btn mdui-btn-raised mdui-ripple mdui-color-indigo mdui-float-right">
-                            注册账户
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+<section class="az-auth__panel az-card" aria-labelledby="login-title">
+  <h1 id="login-title">登录</h1>
+  <form class="az-auth__form" action="/login" method="post" data-auth-login>
+    <div class="az-field">
+      <label for="email">注册邮箱</label>
+      <input class="az-input" id="email" name="email" type="email" autocomplete="email" required>
     </div>
-</div>
-</body>
-<script>
-    var $ = mdui.$;
-    $('#login').on('click', function () {
-        $.ajax({
-            method: 'POST',
-            url: "/login",
-            data: {
-                code: $('#code').val(), // 如果使用 think-captcha
-                email: $('#email').val(),
-                password: $('#password').val(),
-                hcaptcha_result: $('[name=h-captcha-response]').val(), // 如果使用 hcaptcha
-            },
-            dataType: "json",
-            success: function (data) {
-                mdui.alert(data.content, data.title);
-                if (data.status == '1') {
-                    setTimeout("window.location.href = '/user'", 1500);
-                }
-            }
-        });
-    });
-</script>
 
+    <div class="az-field">
+      <label for="password">登录密码</label>
+      <input class="az-input" id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+
+    {if $verify.login_verification_code == '1'}
+      {if $verify.captcha_provider == 'think-captcha'}
+        <div class="az-field">
+          <label for="code">验证码</label>
+          <input class="az-input" id="code" name="code" type="text" autocomplete="off" required>
+          {:captcha_img()}
+        </div>
+      {/if}
+      {if $verify.captcha_provider == 'hcaptcha'}
+        <fieldset class="az-field">
+          <legend>验证码</legend>
+          <input name="hcaptcha_result" type="hidden" value="">
+          <div class="h-captcha" data-sitekey="{$verify.hcaptcha_site_key}"></div>
+        </fieldset>
+        <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+      {/if}
+    {/if}
+
+    <button class="az-button az-button--primary" type="submit" data-submit>登录</button>
+  </form>
+
+  <p><a href="/forget">重置密码</a> · <a href="/register">注册账户</a></p>
+</section>
+
+<script type="module" src="/static/js/auth/login.js"></script>
 {include file="../app/view/auth/footer.html" /}
-
-</html>
