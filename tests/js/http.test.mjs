@@ -67,6 +67,24 @@ test('postForm reports a timeout when its abort signal is triggered', async () =
   );
 });
 
+test('postForm reports a timeout when the JSON body aborts after response headers arrive', async () => {
+  const fetchImpl = async (_url, { signal }) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: () => new Promise((resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted.', 'AbortError'));
+      }, { once: true });
+    })
+  });
+
+  await assert.rejects(
+    postForm('/login', {}, { fetchImpl, timeoutMs: 1 }),
+    error => error instanceof HttpError && error.status === 0 && error.message === '请求超时，请稍后重试'
+  );
+});
+
 test('showNotice renders server text as text content instead of HTML', () => {
   const previousDocument = globalThis.document;
   const titleNode = { textContent: '' };

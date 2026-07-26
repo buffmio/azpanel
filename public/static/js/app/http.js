@@ -32,6 +32,7 @@ export async function postForm(url, fields, {
     try {
       return await response.json();
     } catch (error) {
+      if (error?.name === 'AbortError' && controller.signal.aborted) throw error;
       throw new HttpError('服务器暂时无法处理请求', { status: response.status, cause: error });
     }
   } catch (error) {
