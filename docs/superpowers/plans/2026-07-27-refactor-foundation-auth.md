@@ -165,6 +165,51 @@ use tests\Support\RouteSourceParser;
 
 final class HttpContractTest extends TestCase
 {
+    public function testRouteParserIgnoresCommentedRouteDeclarations(): void
+    {
+        $source = <<<'PHP'
+<?php
+// Route::get('/commented', 'Auth/index');
+Route::post('/active', 'Auth/login');
+PHP;
+
+        self::assertSame(
+            [
+                [
+                    'method' => 'POST',
+                    'path' => '/active',
+                    'handler' => 'Auth/login',
+                ],
+            ],
+            RouteSourceParser::parse($source)
+        );
+    }
+
+    public function testRouteParserAcceptsDoubleQuotedRouteDeclarations(): void
+    {
+        $source = <<<'PHP'
+<?php
+Route::get("/double-quoted", "Auth/index");
+Route::resource("/resource", "UserAzure");
+PHP;
+
+        self::assertSame(
+            [
+                [
+                    'method' => 'GET',
+                    'path' => '/double-quoted',
+                    'handler' => 'Auth/index',
+                ],
+                [
+                    'method' => 'RESOURCE',
+                    'path' => '/resource',
+                    'handler' => 'UserAzure',
+                ],
+            ],
+            RouteSourceParser::parse($source)
+        );
+    }
+
     public function testRouteSourceMatchesApprovedContract(): void
     {
         $source = file_get_contents(dirname(__DIR__, 2) . '/route/app.php');
@@ -202,6 +247,8 @@ Expected: FAIL because `tests\Support\RouteSourceParser` and the fixture do not 
 
 Create `tests/Support/RouteSourceParser.php`:
 
+Tokenize the PHP source to exclude comments before matching route calls, and accept both single-quoted and double-quoted route declarations.
+
 ```php
 <?php
 
@@ -214,8 +261,10 @@ final class RouteSourceParser
     /** @return list<array{method:string,path:string,handler:string}> */
     public static function parse(string $source): array
     {
+        $source = self::withoutComments($source);
+
         preg_match_all(
-            "/Route::(get|head|post|put|patch|delete)\\(\\s*'([^']+)'\\s*,\\s*'([^']+)'/",
+            "/Route::(get|head|post|put|patch|delete)\\(\\s*(['\"])(.*?)\\2\\s*,\\s*(['\"])(.*?)\\4/",
             $source,
             $matches,
             PREG_SET_ORDER
@@ -224,14 +273,14 @@ final class RouteSourceParser
         $routes = array_map(
             static fn (array $match): array => [
                 'method' => strtoupper($match[1]),
-                'path' => $match[2],
-                'handler' => $match[3],
+                'path' => $match[3],
+                'handler' => $match[5],
             ],
             $matches
         );
 
         preg_match_all(
-            "/Route::resource\\(\\s*'([^']+)'\\s*,\\s*'([^']+)'/",
+            "/Route::resource\\(\\s*(['\"])(.*?)\\1\\s*,\\s*(['\"])(.*?)\\3/",
             $source,
             $resources,
             PREG_SET_ORDER
@@ -240,14 +289,29 @@ final class RouteSourceParser
         foreach ($resources as $resource) {
             $routes[] = [
                 'method' => 'RESOURCE',
-                'path' => $resource[1],
-                'handler' => $resource[2],
+                'path' => $resource[2],
+                'handler' => $resource[4],
             ];
         }
 
         usort($routes, static fn (array $a, array $b): int => [$a['path'], $a['method'], $a['handler']] <=> [$b['path'], $b['method'], $b['handler']]);
 
         return $routes;
+    }
+
+    private static function withoutComments(string $source): string
+    {
+        $result = '';
+
+        foreach (token_get_all($source) as $token) {
+            if (is_array($token) && in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+
+            $result .= is_array($token) ? $token[1] : $token;
+        }
+
+        return $result;
     }
 }
 ```
@@ -294,7 +358,7 @@ Continue the table for user dashboard/profile, Azure accounts/resources, Azure V
 
 Run: `composer test -- --filter HttpContractTest`
 
-Expected: 2 tests pass.
+Expected: 4 tests pass.
 
 Run: `rg --files-without-match '迁移状态' docs/refactor/feature-matrix.md`
 

@@ -9,6 +9,51 @@ use tests\Support\RouteSourceParser;
 
 final class HttpContractTest extends TestCase
 {
+    public function testRouteParserIgnoresCommentedRouteDeclarations(): void
+    {
+        $source = <<<'PHP'
+<?php
+// Route::get('/commented', 'Auth/index');
+Route::post('/active', 'Auth/login');
+PHP;
+
+        self::assertSame(
+            [
+                [
+                    'method' => 'POST',
+                    'path' => '/active',
+                    'handler' => 'Auth/login',
+                ],
+            ],
+            RouteSourceParser::parse($source)
+        );
+    }
+
+    public function testRouteParserAcceptsDoubleQuotedRouteDeclarations(): void
+    {
+        $source = <<<'PHP'
+<?php
+Route::get("/double-quoted", "Auth/index");
+Route::resource("/resource", "UserAzure");
+PHP;
+
+        self::assertSame(
+            [
+                [
+                    'method' => 'GET',
+                    'path' => '/double-quoted',
+                    'handler' => 'Auth/index',
+                ],
+                [
+                    'method' => 'RESOURCE',
+                    'path' => '/resource',
+                    'handler' => 'UserAzure',
+                ],
+            ],
+            RouteSourceParser::parse($source)
+        );
+    }
+
     public function testRouteSourceMatchesApprovedContract(): void
     {
         $source = file_get_contents(dirname(__DIR__, 2) . '/route/app.php');
