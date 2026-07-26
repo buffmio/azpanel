@@ -1,4 +1,8 @@
+includes:
+    - phpstan-baseline.neon
+
 parameters:
+    level: 5
     ignoreErrors:
         - '#Function input not found#'
         - '#Function session not found#'

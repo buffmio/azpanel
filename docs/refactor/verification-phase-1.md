@@ -22,10 +22,11 @@
 | 检查 | 命令 | 预期结果 | 状态 | 实际结果 / 证据 |
 | --- | --- | --- | --- | --- |
 | PHP 依赖 | `composer install` | 从 `composer.lock` 安装成功 | 通过 | 退出码 0；无需安装、更新或删除包，autoload、`service:discover` 和 `vendor:publish` 成功。 |
-| PHP 测试 | `composer test` | PHPUnit 全部通过 | 通过 | 退出码 0；`OK (12 tests, 58 assertions)`。 |
-| PHP 静态分析 | `composer analyse` | 不新增 PHPStan 错误 | 未通过 | 退出码 1；PHPStan 输出 `No rules detected`。当前 `phpstan.neon` 只有 `ignoreErrors`，没有规则级别或自定义 rules，因此本次不能证明“无新增错误”。 |
-| JS 请求层测试 | `npm run test:js` | 请求层测试全部通过 | 通过 | 退出码 0；21 个测试通过，0 个失败。 |
+| PHP 测试 | `composer test` | PHPUnit 全部通过 | 通过 | 退出码 0；`OK (12 tests, 70 assertions)`。 |
+| PHP 静态分析 | `composer analyse` | 不新增 PHPStan 错误 | 通过 | 退出码 0；PHPStan level 5 扫描 `app` 的 53 个文件并输出 `No errors`。`phpstan-baseline.neon` 精确记录 402 个既有错误的消息、标识符、路径和计数；新增错误或计数增加仍会使门禁失败。 |
+| JS 请求层测试 | `npm run test:js` | 请求层测试全部通过 | 通过 | 退出码 0；24 个测试通过，0 个失败。 |
 | JS 语法 | `npm run check:js` | 新 JS 文件语法全部有效 | 通过 | 退出码 0；目标 JS 文件均通过 `node --check`。 |
+| Docker 镜像 | `docker build --tag azpanel-final-review:20260727 .` | 当前源码镜像可构建 | 通过 | 退出码 0；依赖层从已提交的 `composer.lock` 安装，最终镜像 digest 为 `sha256:588d12c64bdcff9373702e1b2aa6b6b3224664b884434af228b4f2d05548b62e`。验证后镜像已删除。 |
 | 部署脚本语法 | `bash -n deploy.sh` | shell 语法检查通过 | 通过 | 退出码 0，无输出。 |
 | Compose 配置 | `docker compose config` | Compose 配置可解析 | 通过 | 首次因缺少本地 `.docker.env` 和数据库变量退出 1；创建仅用于验证的占位 `.env`、`.docker.env` 后，原命令退出 0 并输出完整配置。验证文件随后删除。未启动整套 Compose。 |
 
@@ -418,6 +419,8 @@ exit 0
 
 宿主 PHP 8.2.32 缺少 `pdo_mysql`，因此宿主开发服务器未运行。运行态验证使用当前源码构建的一次性 `azpanel-phase1-app:local` 镜像（PHP 8.3.32、含 `pdo_mysql`），与一次性 MariaDB 10.11 容器置于专用 Docker network，并在应用容器内用 curl 访问开发服务器。没有 bind mount 工作树，也没有连接真实 Azure、邮件、Telegram 或 hCaptcha 服务。
 
+最终修正波次另用当前未提交源码构建 `azpanel-final-review:20260727`，并在专用 Docker network 中启动一次性 MariaDB 与应用容器。真实浏览器验证使用固定镜像 `ghcr.io/puppeteer/puppeteer:24.16.0`（Chrome 139）；由于 Docker 环境不提供可用 Chromium sandbox，浏览器仅在该一次性隔离容器中以 `--no-sandbox` 启动。浏览器、应用、数据库容器、network 和本地应用镜像均在验证后删除。
+
 | 页面 / 场景 | 操作与预期结果 | 状态 | 实际结果 / 证据 |
 | --- | --- | --- | --- |
 | 宿主 ThinkPHP 开发服务器 | 在宿主启动开发服务器 | 未运行 | 当前宿主 PHP 缺少 `pdo_mysql`；未提供或执行宿主后台启动命令。 |
@@ -433,22 +436,22 @@ exit 0
 | `/register` hCaptcha | 选择 `hcaptcha` 时显示并提交 `hcaptcha_result`，失败反馈可见 | 通过 | 页面包含隐藏字段、widget 和官方脚本；空 token POST 在本地短路并返回“请完成图像验证码填写”。未用真实 token 调用外部 siteverify。 |
 | `/register` 后端成功 | 一次性数据库和隔离通知配置下成功注册 | 通过 | 后端 POST 返回 `{"status":"1","title":"注册结果","content":"注册成功"}`。 |
 | `/register` JS navigation 回调 | 成功响应后安排 1500ms navigation 回调 | 通过 | `register.test.mjs` 的 `setTimeout` stub 只在 `milliseconds === 1500` 时记录 callback；断言恰有一个 callback，执行后断言 `window.location.assign('/login')`。 |
-| `/register` 真实浏览器跳转 | 浏览器中提交成功后实际跳转 `/login` | 未运行 | 当前环境没有可调用浏览器；后端 curl 与 Node 模块测试不能替代真实浏览器 navigation。 |
+| `/register` 真实浏览器跳转 | 浏览器中提交成功后实际跳转 `/login` | 未运行 | 浏览器验证覆盖页面渲染和登录失败交互；未为本轮浏览器容器准备成功注册所需的完整验证码/邮件状态，Node 模块测试不能替代该 navigation。 |
 | `/forget` 验证码获取 | 可请求密码重置验证码；不发送到真实邮件服务 | 阻塞 | `/forget/code` 在一次性数据库写入有效 reset code，但本地 SMTP sink 因强制 STARTTLS 返回 HTTP 500；未连接真实邮件服务。请求按钮与失败恢复由 JS 测试覆盖。 |
 | `/forget` 密码不一致 | 两次密码不一致时显示失败反馈并允许再次提交 | 通过 | POST 返回“两次输入的密码不符”；JS 测试验证失败后恢复提交按钮。 |
 | `/forget` 错误验证码 | 错误邮箱验证码时显示失败反馈并允许再次提交 | 通过 | POST 返回“验证码不相符”；JS 测试验证失败反馈与按钮恢复。 |
 | `/forget` 后端成功 | 一次性数据库验证码可完成重置，新密码可登录 | 通过 | POST 返回 `{"status":"1","title":"重置结果","content":"重置成功"}`，随后新密码登录返回“登录成功”。 |
 | `/forget` JS navigation 回调 | 成功响应后安排 1500ms navigation 回调 | 通过 | `forget.test.mjs` 的 `setTimeout` stub 只在 `milliseconds === 1500` 时记录 callback；断言恰有一个 callback，执行后断言 `window.location.assign('/login')`。 |
-| `/forget` 真实浏览器跳转 | 浏览器中重置成功后实际跳转 `/login` | 未运行 | 当前环境没有可调用浏览器；后端 curl 与 Node 模块测试不能替代真实浏览器 navigation。 |
-| 响应式视口 | 在 `390×844`、`768×1024`、`1440×900` 检查三个页面，无不可达控件和意外横向滚动 | 未运行 | 当前环境未安装可调用的 Chromium/Chrome，也没有浏览器工具；未把模板检查或 Node DOM stub 冒充真实布局验证。 |
+| `/forget` 真实浏览器跳转 | 浏览器中重置成功后实际跳转 `/login` | 未运行 | 浏览器验证覆盖页面渲染和登录失败交互；未为本轮浏览器容器准备成功重置所需的一次性验证码，Node 模块测试不能替代该 navigation。 |
+| 真实浏览器登录失败反馈 | 输入不存在的用户并提交，反馈 dialog 可见且关闭按钮有效 | 通过 | Chrome 139 在 `390×844` 下实际提交；dialog 显示“用户不存在”，点击“知道了”后 `open` 状态清除。 |
+| 响应式视口 | 在 `390×844`、`768×1024`、`1440×900` 检查三个页面，无不可达控件和意外横向滚动 | 通过 | Puppeteer/Chrome 139 对 `/login`、`/register`、`/forget` 共 9 组实际导航均返回 HTTP 200；每组 `scrollWidth <= innerWidth`，可见 input/button/link 横向裁切数均为 0。面板宽度在手机为 366px、平板和桌面为 448px。 |
 
-## 未覆盖的外部或浏览器验证
+## 未覆盖的外部验证
 
 - 未运行宿主 ThinkPHP 开发服务器：当前宿主 PHP 缺少 `pdo_mysql`；运行态证据来自无 bind mount 的一次性应用和数据库容器。
 - 未运行整套 `docker compose up`：Docker daemon 无法直接 bind mount 当前 devcontainer 工作树；仅运行了 `docker compose config` 和无 bind mount 的一次性镜像/数据库验证。
 - 未验证真实 SMTP 投递、真实 hCaptcha 成功 token、Azure 或 Telegram；避免触碰真实凭据和资源。
-- 未执行三个目标视口的真实浏览器布局检查；进入下一阶段前仍需在具备浏览器的环境补验。
-- 功能顾虑：`allow_public_reg=0` 只影响注册页面，直接 `POST /register` 仍可创建用户。
+- 高优先级安全债务：`allow_public_reg=0` 只影响注册页面，直接 `POST /register` 仍可创建用户；验证码记录的复用/null 边界也需要后端修正。第一阶段计划明确保持 Auth Controller、数据库和认证语义不变，因此本波次只记录并升级优先级，下一阶段应先补失败契约再修改服务端行为。
 
 ## 第一阶段门禁
 

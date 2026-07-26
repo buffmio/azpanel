@@ -2,7 +2,7 @@
   <dialog class="az-dialog" data-notice-dialog aria-labelledby="notice-title">
     <h2 id="notice-title" data-notice-title></h2>
     <p data-notice-content aria-live="polite"></p>
-    <form method="dialog"><button class="az-button az-button--primary">知道了</button></form>
+    <form method="dialog"><button class="az-button az-button--primary" type="button" data-notice-close>知道了</button></form>
   </dialog>
   <footer class="az-auth__footer">
     {:app\\model\\Config::obtain('custom_text')}

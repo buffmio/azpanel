@@ -20,6 +20,8 @@ final class AuthTemplateContractTest extends TestCase
     {
         $footer = file_get_contents(dirname(__DIR__, 2) . '/app/view/auth/footer.html');
         self::assertStringContainsString('data-notice-dialog', $footer);
+        self::assertStringContainsString('data-notice-close', $footer);
+        self::assertStringContainsString('type="button"', $footer);
         self::assertStringContainsString('aria-live="polite"', $footer);
         self::assertStringContainsString("Config::obtain('custom_text')", $footer);
         self::assertStringContainsString("Config::obtain('custom_script')", $footer);

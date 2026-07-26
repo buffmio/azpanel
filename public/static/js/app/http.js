@@ -10,6 +10,12 @@ export function isSuccess(response) {
   return String(response?.status) === '1';
 }
 
+function isJsonContentType(value) {
+  const mediaType = String(value).split(';', 1)[0].trim().toLowerCase();
+  return mediaType === 'application/json'
+    || /^[^/\s]+\/[^/\s]+\+json$/.test(mediaType);
+}
+
 export async function postForm(url, fields, {
   fetchImpl = globalThis.fetch,
   timeoutMs = 15000
@@ -26,7 +32,7 @@ export async function postForm(url, fields, {
       signal: controller.signal
     });
     const contentType = response.headers.get('content-type') ?? '';
-    if (!response.ok || !contentType.includes('application/json')) {
+    if (!response.ok || !isJsonContentType(contentType)) {
       throw new HttpError('服务器暂时无法处理请求', { status: response.status });
     }
     try {

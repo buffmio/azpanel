@@ -1,0 +1,1519 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property app\\model\\Traffic\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Traffic\:\:\$d\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Traffic\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Traffic\:\:\$u\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Traffic\:\:\$uuid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$skip\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/Tools.php
+
+		-
+			message: '#^Method app\\command\\Tools\:\:execute\(\) should return int\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 2
+			path: app/command/Tools.php
+
+		-
+			message: '#^Variable \$network_in_total might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Variable \$network_out_total might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/command/Tools.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$push_swicth\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$rate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to protected property think\\db\\Query\:\:\$name\.$#'
+			identifier: property.protected
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Method app\\command\\autoRefreshAccount\:\:execute\(\) should return int\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/command/autoRefreshAccount.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$total_time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Method app\\command\\closeTimeoutTask\:\:execute\(\) should return int\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/command/closeTimeoutTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$is_admin\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$passwd\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$personalise\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/createAdmin.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$rule_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$rule_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$vm_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$recover_push\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Method app\\command\\trafficControlStart\:\:execute\(\) should return int\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/command/trafficControlStart.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$rule_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$rule_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlLog\:\:\$vm_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$execute_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$recover_push\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$rule_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlTask\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$request_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$rule\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to protected property think\\db\\Query\:\:\$name\.$#'
+			identifier: property.protected
+			count: 2
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Method app\\command\\trafficControlStop\:\:execute\(\) should return int\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Variable \$in_indicator_usage_raw might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Variable \$out_indicator_usage_raw might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/command/trafficControlStop.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Ann\:\:\$content\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminAnn.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Ann\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminAnn.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Ann\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminAnn.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Ann\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminAnn.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Ann\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminAnn.php
+
+		-
+			message: '#^Call to an undefined static method think\\facade\\Db\:\:query\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/controller/AdminDashboard.php
+
+		-
+			message: '#^Variable \$list might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/AdminSetting.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$is_admin\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$passwd\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$personalise\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$remark\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AdminUser.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$info\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$ip\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$ip_info\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\LoginLog\:\:\$ua\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$passwd\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$personalise\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\User\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$expired_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$ip\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Verify\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/Auth.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$account_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$at_subscription_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$disk_size\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$instance_details\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$ip_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$ipv6_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$location\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$network_details\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$network_interfaces\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$os_offer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$os_sku\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$request_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$resource_group\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$vm_details\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$vm_size\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Access to protected property app\\model\\AzureServer\:\:\$name\.$#'
+			identifier: property.protected
+			count: 1
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Offset ''2'' does not exist on non\-empty\-list\<string\>\.$#'
+			identifier: offsetAccess.notFound
+			count: 3
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Offset ''4'' does not exist on non\-empty\-list\<string\>\.$#'
+			identifier: offsetAccess.notFound
+			count: 2
+			path: app/controller/AzureApi.php
+
+		-
+			message: '#^Parameter \#2 \$offset of function fseek expects int, float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/controller/Ip.php
+
+		-
+			message: '#^Variable \$findip might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/Ip.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_api\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_passwd\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_sub\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_sub_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_sub_status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_sub_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$az_sub_updated_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$providers_register\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Azure\:\:\$user_mark\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$az_email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$az_sub_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$bill_charges\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$life_cycle\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureRecycle\:\:\$user_mark\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Share\:\:\$content\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Share\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Share\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Share\:\:\$token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Share\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$az_sub_updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$disk_details\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$request_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$user_mark\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$vm_size\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Call to an undefined method iterable\<think\\db\\Query\>&think\\Collection\:\:delete\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Call to an undefined method think\\db\\BaseQuery\:\:distinct\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Offset ''2'' does not exist on non\-empty\-list\<string\>\.$#'
+			identifier: offsetAccess.notFound
+			count: 2
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Offset ''4'' does not exist on non\-empty\-list\<string\>\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Offset ''8'' does not exist on non\-empty\-list\<string\>\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Variable \$network_in_total might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzure.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 33
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$at_subscription_id\.$#'
+			identifier: property.notFound
+			count: 9
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$disk_details\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$disk_size\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$instance_details\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$location\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$network_details\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$os_offer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$os_sku\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$request_url\.$#'
+			identifier: property.notFound
+			count: 20
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$resource_group\.$#'
+			identifier: property.notFound
+			count: 9
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServer\:\:\$vm_details\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServerResize\:\:\$after_size\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServerResize\:\:\$before_size\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServerResize\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServerResize\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AzureServerResize\:\:\$vm_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$account_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$d\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$request_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$u\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to protected property app\\model\\AzureServer\:\:\$name\.$#'
+			identifier: property.protected
+			count: 7
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Call to an undefined method Exception\:\:getResponse\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Method app\\controller\\UserAzureServer\:\:buildOsProfile\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Method app\\controller\\UserAzureServer\:\:buildVmOsDiskUpdatePayload\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between int and '''' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$available_memory might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$chart_day on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$cpu_credits might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$disk_details might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$network_in_total might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$network_out_total might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$percentage_cpu might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$quota_limit might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$single_size_core might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$size_family might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Variable \$size_quota_limit might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/controller/UserAzureServer.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$execute_push\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$index\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$interval\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$limit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$recover_push\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$switch\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\ControlRule\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$rule\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to protected property app\\model\\ControlRule\:\:\$name\.$#'
+			identifier: property.protected
+			count: 1
+			path: app/controller/UserAzureServerRule.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$function_swicth\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$push_swicth\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$rate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\AutoRefresh\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\SshKey\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\SshKey\:\:\$public_key\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\SshKey\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to protected property app\\model\\SshKey\:\:\$name\.$#'
+			identifier: property.protected
+			count: 1
+			path: app/controller/UserDashboard.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$current\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$params\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$schedule\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$task_uuid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property app\\model\\Task\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to protected property app\\model\\Task\:\:\$name\.$#'
+			identifier: property.protected
+			count: 1
+			path: app/controller/UserTask.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$item\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/model/Config.php
+
+		-
+			message: '#^Access to an undefined property think\\db\\Query\:\:\$value\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/model/Config.php

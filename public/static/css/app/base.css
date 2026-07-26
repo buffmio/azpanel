@@ -1,5 +1,5 @@
 *, *::before, *::after { box-sizing: border-box; }
-html { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: var(--az-color-text); background: var(--az-color-bg); }
+html { font-family: var(--az-font-sans); color: var(--az-color-text); background: var(--az-color-bg); }
 body { min-height: 100vh; margin: 0; }
 a { color: var(--az-color-primary); }
 :focus-visible { outline: none; box-shadow: var(--az-focus-ring); }

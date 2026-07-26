@@ -40,6 +40,41 @@ test('postForm throws HttpError for JSON HTTP failures', async () => {
   );
 });
 
+test('postForm accepts JSON media types with parameters and structured suffixes', async () => {
+  for (const contentType of [
+    'application/json; charset=UTF-8',
+    'Application/JSON ; charset=utf-8',
+    'application/problem+json',
+    'application/vnd.azpanel.response+json; version=1',
+    'text/vnd.azpanel.event+json'
+  ]) {
+    const fetchImpl = async () => new Response(JSON.stringify({ status: '1' }), {
+      headers: { 'content-type': contentType }
+    });
+
+    assert.equal(isSuccess(await postForm('/login', {}, { fetchImpl })), true, contentType);
+  }
+});
+
+test('postForm rejects media types that merely contain application/json text', async () => {
+  for (const contentType of [
+    'application/jsonp',
+    'application/json-patch',
+    'text/application/json',
+    'text/plain; profile="application/json"'
+  ]) {
+    const fetchImpl = async () => new Response(JSON.stringify({ status: '1' }), {
+      headers: { 'content-type': contentType }
+    });
+
+    await assert.rejects(
+      postForm('/login', {}, { fetchImpl }),
+      error => error instanceof HttpError && error.status === 200,
+      contentType
+    );
+  }
+});
+
 test('postForm preserves the status for malformed JSON responses', async () => {
   const fetchImpl = async () => new Response('{', {
     status: 200,
@@ -114,6 +149,58 @@ test('showNotice renders server text as text content instead of HTML', () => {
     assert.equal(titleNode.textContent, '<strong>提示</strong>');
     assert.equal(contentNode.textContent, '<img src=x onerror=alert(1)>');
     assert.equal(dialog.open, true);
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
+
+test('showNotice fallback can be opened, closed, hidden, and opened again', () => {
+  const previousDocument = globalThis.document;
+  let closeHandler;
+  let closeBindings = 0;
+  const titleNode = { textContent: '' };
+  const contentNode = { textContent: '' };
+  const closeButton = {
+    addEventListener(type, handler) {
+      assert.equal(type, 'click');
+      closeBindings += 1;
+      closeHandler = handler;
+    }
+  };
+  const dialog = {
+    hidden: true,
+    attributes: new Map(),
+    querySelector(selector) {
+      if (selector === '[data-notice-title]') return titleNode;
+      if (selector === '[data-notice-content]') return contentNode;
+      if (selector === '[data-notice-close]') return closeButton;
+      return null;
+    },
+    setAttribute(name, value) {
+      this.attributes.set(name, value);
+    }
+  };
+  globalThis.document = {
+    querySelector(selector) {
+      return selector === '[data-notice-dialog]' ? dialog : null;
+    }
+  };
+
+  try {
+    showNotice({ title: '第一次', content: '内容' });
+    assert.equal(dialog.hidden, false);
+    assert.equal(dialog.attributes.get('role'), 'dialog');
+    assert.equal(dialog.attributes.get('aria-modal'), 'true');
+    assert.equal(typeof closeHandler, 'function');
+
+    closeHandler();
+    assert.equal(dialog.hidden, true);
+
+    showNotice({ title: '第二次', content: '新内容' });
+    assert.equal(dialog.hidden, false);
+    assert.equal(titleNode.textContent, '第二次');
+    assert.equal(contentNode.textContent, '新内容');
+    assert.equal(closeBindings, 1);
   } finally {
     globalThis.document = previousDocument;
   }

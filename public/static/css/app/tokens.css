@@ -10,6 +10,12 @@
   --az-color-success: #16875b;
   --az-color-warning: #b54708;
   --az-color-danger: #c4320a;
+  --az-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --az-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --az-font-size-sm: 0.875rem;
+  --az-font-size-base: 1rem;
+  --az-font-size-lg: 1.125rem;
+  --az-line-height-base: 1.5;
   --az-space-1: 0.25rem;
   --az-space-2: 0.5rem;
   --az-space-3: 0.75rem;
@@ -22,5 +28,19 @@
   --az-shadow-sm: 0 1px 2px rgb(16 24 40 / 6%);
   --az-shadow-md: 0 8px 24px rgb(16 24 40 / 10%);
   --az-focus-ring: 0 0 0 3px rgb(49 91 216 / 24%);
+  --az-z-base: 0;
+  --az-z-dropdown: 100;
+  --az-z-sticky: 200;
+  --az-z-overlay: 900;
+  --az-z-modal: 1000;
+  --az-z-toast: 1100;
+  --az-breakpoint-sm: 40rem;
+  --az-breakpoint-md: 48rem;
+  --az-breakpoint-lg: 64rem;
+  --az-breakpoint-xl: 80rem;
+  --az-motion-fast: 120ms;
+  --az-motion-normal: 200ms;
+  --az-motion-slow: 300ms;
+  --az-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --az-content-width: 72rem;
 }
