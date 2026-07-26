@@ -11,7 +11,7 @@
 - `composer analyse`：不新增 PHPStan 错误。
 - `npm run test:js`：请求层测试全部通过。
 - `npm run check:js`：新 JS 文件语法全部有效。
-- `php think run --host 127.0.0.1 --port 8080`：应用可启动。
+- 宿主 `php think run`：未运行；当前宿主 PHP 缺少 `pdo_mysql`，运行态改由无 bind mount 的一次性应用镜像验证。
 - `/login`：邮箱、密码、两类验证码条件分支及失败反馈可用。
 - `/register`：关闭注册、邮箱验证码、两类图形验证码、后端成功及 JS navigation 回调分别验证。
 - `/forget`：验证码获取、密码不一致、错误验证码、后端成功及 JS navigation 回调分别验证。
@@ -31,7 +31,7 @@
 
 ## 可复现实验命令
 
-以下所有 bash fenced blocks 必须从仓库根目录开始、按顺序粘贴到同一个 shell session；不要单独执行中间代码块。第一段建立隔离目录和 cleanup trap，后续命令只在 `git archive HEAD` 导出的临时源码中创建环境文件和构建上下文。变量和凭据仅用于一次性本地验证。
+以下所有 bash fenced blocks 必须从仓库根目录开始、按顺序粘贴到同一个 shell session；不要单独执行中间代码块。第一段建立隔离目录和只管理带本次标签的 Docker 资源及严格限定临时目录的 cleanup trap，后续命令只在 `git archive HEAD` 导出的临时源码中创建环境文件和构建上下文。变量和凭据仅用于一次性本地验证。
 
 Docker daemon 无法 bind mount 当前 devcontainer 路径，因此没有运行 `docker compose up`；`docker build` 会把临时构建上下文传给 daemon，并由 Dockerfile 的 `COPY . .` 将源码复制进镜像，不依赖运行时 bind mount。HTTP 请求也从应用容器内部发出，避免把 daemon 主机端口误当成 devcontainer 本机端口。
 
@@ -48,268 +48,11 @@ PHASE1_IMAGE=azpanel-phase1-app:local
 PHASE1_NETWORK=azpanel-phase1-net
 PHASE1_DB=azpanel-phase1-db
 PHASE1_APP=azpanel-phase1-app-run
-PHASE1_HOST_PORT=
-PHASE1_HOST_WAITER_PID=
-PHASE1_HOST_PID=
-PHASE1_HOST_STARTTIME=
-PHASE1_HOST_IDENTITY_FILE="$PHASE1_TMP_ROOT/host-server.identity"
-PHASE1_HOST_MEMBERS_FILE="$PHASE1_TMP_ROOT/host-server.members"
-
-phase1_proc_starttime() {
-  local phase1_pid=$1
-  local phase1_stat
-  local phase1_after_comm
-  IFS= read -r phase1_stat < "/proc/$phase1_pid/stat" || return 1
-  phase1_after_comm=${phase1_stat##*) }
-  set -- $phase1_after_comm
-  [ "$#" -ge 20 ] || return 1
-  shift 19
-  case "$1" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  printf '%s\n' "$1"
-}
-
-phase1_host_pid_matches() {
-  local phase1_pid=$1
-  local phase1_expected_starttime=$2
-  local phase1_actual_starttime
-  local phase1_actual_sid
-  local phase1_actual_cwd
-  case "$phase1_pid" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  case "$phase1_expected_starttime" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  phase1_actual_starttime=$(phase1_proc_starttime "$phase1_pid") || return 1
-  phase1_actual_sid=$(
-    ps -o sid= -p "$phase1_pid" 2>/dev/null | tr -d ' '
-  )
-  phase1_actual_cwd=$(readlink "/proc/$phase1_pid/cwd" 2>/dev/null) || return 1
-  [ "$phase1_actual_starttime" = "$phase1_expected_starttime" ] \
-    && [ "$phase1_actual_sid" = "$PHASE1_HOST_PID" ] \
-    && [ "$phase1_actual_cwd" = "$PHASE1_SOURCE" ]
-}
-
-phase1_host_leader_matches() {
-  [ -n "${PHASE1_HOST_PID:-}" ] \
-    && [ -n "${PHASE1_HOST_STARTTIME:-}" ] \
-    && phase1_host_pid_matches \
-      "$PHASE1_HOST_PID" "$PHASE1_HOST_STARTTIME"
-}
-
-phase1_read_host_identity() {
-  local phase1_pid
-  local phase1_starttime
-  local phase1_extra=
-  [ -s "$PHASE1_HOST_IDENTITY_FILE" ] || return 1
-  IFS=' ' read -r phase1_pid phase1_starttime phase1_extra \
-    < "$PHASE1_HOST_IDENTITY_FILE" || return 1
-  case "$phase1_pid" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  case "$phase1_starttime" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  [ -z "$phase1_extra" ] || return 1
-  PHASE1_HOST_PID=$phase1_pid
-  PHASE1_HOST_STARTTIME=$phase1_starttime
-}
-
-phase1_host_session_pids() {
-  ps -eo pid=,sid= |
-    awk -v sid="$PHASE1_HOST_PID" '$2 == sid { print $1 }'
-}
-
-phase1_snapshot_host_session() {
-  local phase1_pid
-  local phase1_starttime
-  : > "$PHASE1_HOST_MEMBERS_FILE"
-  for phase1_pid in $(phase1_host_session_pids); do
-    if [ "$phase1_pid" = "$PHASE1_HOST_PID" ]; then
-      phase1_starttime=$PHASE1_HOST_STARTTIME
-    else
-      phase1_starttime=$(phase1_proc_starttime "$phase1_pid") || {
-        printf 'refusing unstable host session PID: %s\n' "$phase1_pid" >&2
-        return 1
-      }
-    fi
-    if ! phase1_host_pid_matches "$phase1_pid" "$phase1_starttime"; then
-      printf 'refusing host session PID with changed identity: %s\n' \
-        "$phase1_pid" >&2
-      return 1
-    fi
-    printf '%s %s\n' "$phase1_pid" "$phase1_starttime" \
-      >> "$PHASE1_HOST_MEMBERS_FILE"
-  done
-}
-
-phase1_pidfd_signal_host_snapshot() {
-  python3 - \
-    "$1" \
-    "$PHASE1_HOST_PID" \
-    "$PHASE1_SOURCE" \
-    "$PHASE1_HOST_MEMBERS_FILE" <<'PY'
-import os
-import signal
-import sys
-
-signal_name, expected_sid_text, expected_cwd, snapshot_path = sys.argv[1:]
-signals = {"TERM": signal.SIGTERM, "KILL": signal.SIGKILL}
-if signal_name not in signals:
-    raise SystemExit(f"unsupported host signal: {signal_name}")
-if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
-    raise SystemExit("Python and kernel pidfd support are required for safe cleanup")
-
-expected_sid = int(expected_sid_text)
-pinned = []
-
-
-def process_starttime(pid):
-    with open(f"/proc/{pid}/stat", encoding="ascii") as stat_file:
-        stat = stat_file.read()
-    after_comm = stat.rsplit(") ", 1)
-    if len(after_comm) != 2:
-        raise RuntimeError(f"invalid stat for host PID {pid}")
-    fields = after_comm[1].split()
-    if len(fields) < 20 or not fields[19].isdigit():
-        raise RuntimeError(f"invalid starttime for host PID {pid}")
-    return fields[19]
-
-
-try:
-    with open(snapshot_path, encoding="ascii") as snapshot:
-        for line in snapshot:
-            fields = line.split()
-            if len(fields) != 2 or not all(field.isdigit() for field in fields):
-                raise RuntimeError("invalid host session snapshot")
-            pid = int(fields[0])
-            expected_starttime = fields[1]
-            try:
-                pidfd = os.pidfd_open(pid)
-            except ProcessLookupError:
-                continue
-            try:
-                actual_starttime = process_starttime(pid)
-                actual_sid = os.getsid(pid)
-                actual_cwd = os.readlink(f"/proc/{pid}/cwd")
-            except (FileNotFoundError, ProcessLookupError):
-                os.close(pidfd)
-                continue
-            if (
-                actual_starttime != expected_starttime
-                or actual_sid != expected_sid
-                or actual_cwd != expected_cwd
-            ):
-                os.close(pidfd)
-                raise RuntimeError(f"changed host PID identity: {pid}")
-            pinned.append((pid, pidfd))
-
-    for pid, pidfd in pinned:
-        try:
-            signal.pidfd_send_signal(pidfd, signals[signal_name])
-        except ProcessLookupError:
-            pass
-finally:
-    for _pid, pidfd in pinned:
-        os.close(pidfd)
-PY
-}
-
-phase1_signal_host_session() {
-  local phase1_signal=$1
-  local phase1_pid
-  local phase1_starttime
-  phase1_snapshot_host_session || return 1
-
-  while IFS=' ' read -r phase1_pid phase1_starttime; do
-    [ -n "$phase1_pid" ] || continue
-    if ! phase1_host_pid_matches "$phase1_pid" "$phase1_starttime"; then
-      printf 'refusing changed host PID before %s: %s\n' \
-        "$phase1_signal" "$phase1_pid" >&2
-      return 1
-    fi
-  done < "$PHASE1_HOST_MEMBERS_FILE"
-
-  phase1_pidfd_signal_host_snapshot "$phase1_signal"
-}
-
-phase1_stop_host() {
-  local phase1_attempt
-  local phase1_remaining
-  if [ -z "${PHASE1_HOST_PID:-}" ] \
-    && [ -n "${PHASE1_HOST_WAITER_PID:-}" ]; then
-    for phase1_attempt in $(seq 1 20); do
-      phase1_read_host_identity && break
-      if ! kill -0 "$PHASE1_HOST_WAITER_PID" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-    if [ -z "${PHASE1_HOST_PID:-}" ]; then
-      if kill -0 "$PHASE1_HOST_WAITER_PID" 2>/dev/null; then
-        printf 'refusing cleanup without a published host identity\n' >&2
-        return 1
-      fi
-      wait "$PHASE1_HOST_WAITER_PID" 2>/dev/null || true
-      PHASE1_HOST_WAITER_PID=
-      return 0
-    fi
-  fi
-  [ -n "${PHASE1_HOST_PID:-}" ] || return 0
-
-  if [ -e "/proc/$PHASE1_HOST_PID" ] \
-    && ! phase1_host_leader_matches; then
-    printf 'refusing host leader with changed PID/start identity: %s\n' \
-      "$PHASE1_HOST_PID" >&2
-    return 1
-  fi
-
-  phase1_signal_host_session TERM || return 1
-  for phase1_attempt in $(seq 1 20); do
-    phase1_remaining=$(phase1_host_session_pids)
-    [ -z "$phase1_remaining" ] && break
-    sleep 0.1
-  done
-
-  phase1_remaining=$(phase1_host_session_pids)
-  if [ -n "$phase1_remaining" ]; then
-    phase1_signal_host_session KILL || return 1
-    for phase1_attempt in $(seq 1 20); do
-      phase1_remaining=$(phase1_host_session_pids)
-      [ -z "$phase1_remaining" ] && break
-      sleep 0.1
-    done
-  fi
-
-  phase1_remaining=$(phase1_host_session_pids)
-  if [ -n "$phase1_remaining" ]; then
-    printf 'host session still has members after cleanup: %s\n' \
-      "$phase1_remaining" >&2
-    return 1
-  fi
-
-  if [ -n "${PHASE1_HOST_WAITER_PID:-}" ]; then
-    wait "$PHASE1_HOST_WAITER_PID" 2>/dev/null || true
-  fi
-  if [ -n "${PHASE1_HOST_PORT:-}" ] \
-    && ss -H -ltn "sport = :$PHASE1_HOST_PORT" | rg -q .; then
-    printf 'host port still has a listener after cleanup: %s\n' \
-      "$PHASE1_HOST_PORT" >&2
-    return 1
-  fi
-  PHASE1_HOST_WAITER_PID=
-  PHASE1_HOST_PID=
-  PHASE1_HOST_STARTTIME=
-}
 
 phase1_cleanup() {
   phase1_status=$?
-  phase1_host_cleanup_status=0
   trap - EXIT INT TERM
   set +e
-  phase1_stop_host || phase1_host_cleanup_status=$?
   cd "$PHASE1_REPO_ROOT"
 
   if [ "$(docker inspect --format '{{ index .Config.Labels "org.azpanel.phase1" }}' \
@@ -329,26 +72,20 @@ phase1_cleanup() {
     docker image rm "$PHASE1_IMAGE"
   fi
 
-  if [ "$phase1_host_cleanup_status" -eq 0 ]; then
-    case "${PHASE1_TMP_ROOT:-}" in
-      "$PHASE1_TMP_PARENT"/azpanel-phase1.*)
-        if [ -n "$PHASE1_TMP_ROOT" ] \
-          && [ "$PHASE1_TMP_ROOT" != "$PHASE1_TMP_PARENT" ] \
-          && [ -d "$PHASE1_TMP_ROOT" ]; then
-          find "$PHASE1_TMP_ROOT" -mindepth 1 -delete
-          rmdir "$PHASE1_TMP_ROOT"
-        fi
-        ;;
-      *)
-        printf 'refusing to clean unexpected path: %s\n' \
-          "${PHASE1_TMP_ROOT:-<empty>}" >&2
-        ;;
-    esac
-  else
-    printf 'host cleanup failed; preserving temporary source: %s\n' \
-      "$PHASE1_TMP_ROOT" >&2
-    [ "$phase1_status" -ne 0 ] || phase1_status=$phase1_host_cleanup_status
-  fi
+  case "${PHASE1_TMP_ROOT:-}" in
+    "$PHASE1_TMP_PARENT"/azpanel-phase1.*)
+      if [ -n "$PHASE1_TMP_ROOT" ] \
+        && [ "$PHASE1_TMP_ROOT" != "$PHASE1_TMP_PARENT" ] \
+        && [ -d "$PHASE1_TMP_ROOT" ]; then
+        find "$PHASE1_TMP_ROOT" -mindepth 1 -delete
+        rmdir "$PHASE1_TMP_ROOT"
+      fi
+      ;;
+    *)
+      printf 'refusing to clean unexpected path: %s\n' \
+        "${PHASE1_TMP_ROOT:-<empty>}" >&2
+      ;;
+  esac
   exit "$phase1_status"
 }
 trap phase1_cleanup EXIT INT TERM
@@ -403,114 +140,9 @@ docker compose config
 
 关键实际结果：首次在两个文件不存在时退出 1，并报告 `.docker.env` 不存在；使用以上占位文件后退出 0，输出 `app`、`web`、`db` 三个服务及完整 volumes/networks 配置。两个占位文件仅存在于临时源码目录，最终由经过路径校验的 cleanup trap 删除。
 
-### 宿主开发服务器探测
+### 宿主开发服务器
 
-在同一个 shell session 后台启动简报指定的原命令：
-
-```bash
-PHASE1_HOST_PORT=18080
-if ss -H -ltn "sport = :$PHASE1_HOST_PORT" | rg -q .; then
-  printf 'refusing to use an occupied host port: %s\n' "$PHASE1_HOST_PORT" >&2
-  exit 1
-fi
-
-setsid --fork --wait sh -c '
-  phase1_identity_file=$1
-  phase1_port=$2
-  IFS= read -r phase1_stat < "/proc/$$/stat" || exit 1
-  phase1_after_comm=${phase1_stat##*) }
-  set -- $phase1_after_comm
-  [ "$#" -ge 20 ] || exit 1
-  shift 19
-  phase1_starttime=$1
-  [ -n "$phase1_starttime" ] || exit 1
-  case "$phase1_starttime" in
-    *[!0-9]*) exit 1 ;;
-  esac
-  phase1_identity_tmp="$phase1_identity_file.$$"
-  printf "%s %s\n" "$$" "$phase1_starttime" > "$phase1_identity_tmp" \
-    || exit 1
-  mv -- "$phase1_identity_tmp" "$phase1_identity_file" || exit 1
-  exec php think run --host 127.0.0.1 --port "$phase1_port"
-' sh "$PHASE1_HOST_IDENTITY_FILE" "$PHASE1_HOST_PORT" \
-  > "$PHASE1_TMP_ROOT/host-server.log" 2>&1 &
-PHASE1_HOST_WAITER_PID=$!
-
-for attempt in $(seq 1 50); do
-  [ -s "$PHASE1_HOST_IDENTITY_FILE" ] && break
-  if ! kill -0 "$PHASE1_HOST_WAITER_PID" 2>/dev/null; then
-    wait "$PHASE1_HOST_WAITER_PID" 2>/dev/null || true
-    cat "$PHASE1_TMP_ROOT/host-server.log" >&2
-    printf 'setsid waiter exited before publishing host identity\n' >&2
-    exit 1
-  fi
-  sleep 0.1
-done
-if [ ! -s "$PHASE1_HOST_IDENTITY_FILE" ]; then
-  printf 'host session did not publish its identity\n' >&2
-  exit 1
-fi
-
-if ! phase1_read_host_identity || ! phase1_host_leader_matches; then
-  cat "$PHASE1_TMP_ROOT/host-server.log" >&2
-  printf 'host PID is not a stable session leader in the temporary source\n' >&2
-  exit 1
-fi
-test "$PHASE1_HOST_WAITER_PID" != "$PHASE1_HOST_PID"
-printf 'host waiter PID %s; verified session leader PID/SID %s\n' \
-  "$PHASE1_HOST_WAITER_PID" "$PHASE1_HOST_PID"
-php -m | rg 'PDO|pdo_mysql'
-
-PHASE1_HOST_STATUS=
-PHASE1_HOST_READY=0
-for attempt in $(seq 1 10); do
-  if ! phase1_host_leader_matches; then
-    cat "$PHASE1_TMP_ROOT/host-server.log" >&2
-    printf 'host server identity changed before readiness\n' >&2
-    exit 1
-  fi
-
-  if ! rg -q -F \
-    "ThinkPHP Development server is started On <http://127.0.0.1:$PHASE1_HOST_PORT/>" \
-    "$PHASE1_TMP_ROOT/host-server.log"; then
-    sleep 1
-    continue
-  fi
-
-  PHASE1_HOST_STATUS="$(
-    curl --silent --show-error \
-      --output "$PHASE1_TMP_ROOT/host-login" \
-      --write-out '%{http_code}' \
-      "http://127.0.0.1:$PHASE1_HOST_PORT/login" || true
-  )"
-  if [ "$PHASE1_HOST_STATUS" = 200 ] \
-    && rg -q -F 'data-auth-login' "$PHASE1_TMP_ROOT/host-login"; then
-    PHASE1_HOST_READY=1
-    break
-  fi
-  if [ "$PHASE1_HOST_STATUS" = 500 ] \
-    && rg -q '127\.0\.0\.1:[0-9]+ \[500\]: GET /login' \
-      "$PHASE1_TMP_ROOT/host-server.log"; then
-    PHASE1_HOST_READY=1
-    break
-  fi
-  sleep 1
-done
-
-phase1_host_leader_matches
-rg -q -F \
-  "ThinkPHP Development server is started On <http://127.0.0.1:$PHASE1_HOST_PORT/>" \
-  "$PHASE1_TMP_ROOT/host-server.log"
-test "$PHASE1_HOST_READY" -eq 1
-printf 'HTTP %s\n' "$PHASE1_HOST_STATUS"
-phase1_stop_host
-if ss -H -ltn "sport = :$PHASE1_HOST_PORT" | rg -q .; then
-  printf 'host port still has a listener: %s\n' "$PHASE1_HOST_PORT" >&2
-  exit 1
-fi
-```
-
-关键实际结果：启动前确认 `127.0.0.1:18080` 未被监听。外层 `$!` 只记录 `setsid --fork --wait` 的 waiter；新 session 内的 shell 原子写入自身 PID 和 `/proc` starttime 后 `exec php think run`，因此 readiness 使用的是经过 `PID == SID`、starttime 和临时源码 cwd 复核的真实 session leader。有限重试中的 `/login` 返回 HTTP 500，且本次服务器日志记录同一路径和状态；若宿主具有 `pdo_mysql`，则要求 HTTP 200 且正文包含本项目登录表单的 `data-auth-login`。cleanup 按 SID 枚举实际 session 成员，先为整批 PID 打开 Linux pidfd 并复核 SID、starttime 和 cwd，全部通过后才用 `pidfd_send_signal` 发送 TERM（必要时 KILL），避免校验后的 PID 复用竞态；缺少 Python/kernel pidfd 支持时会安全失败并保留临时源码。结束后 session 无成员且端口无 listener。因此当前环境的后续数据库相关 HTTP 验证转入包含项目 Dockerfile 所声明扩展的镜像。
+宿主 `php think run` 未运行。当前宿主 PHP 8.2.32 缺少 `pdo_mysql`，不能提供认证页面的运行态证据；本复现实验不在宿主启动后台 PHP 进程，也不提供相应的启动或清理命令。运行态证据全部来自下方无 bind mount 的一次性应用镜像、MariaDB 和应用容器内 curl。
 
 ### 一次性应用与数据库
 
@@ -584,7 +216,7 @@ docker run --rm -d \
   sh -lc 'python3 -m smtpd -n -c DebuggingServer 127.0.0.1:1025 & exec php think run --host 0.0.0.0 --port 8080'
 ```
 
-关键实际结果：镜像构建退出 0；构建日志先显示 `COPY composer.json composer.lock ./`，随后显示 `Installing dependencies from lock file`、`90 installs, 0 updates, 0 removals`。MariaDB 就绪，应用日志显示 PHP 8.3.32 development server 启动。应用容器到 `azpanel-phase1-db:3306` 的连接成功；三个页面在应用容器内均返回 HTTP 200：
+关键实际结果：镜像构建退出 0；构建日志先显示 `COPY composer.json composer.lock ./`，随后显示 `Installing dependencies from lock file`、`90 installs, 0 updates, 0 removals`。MariaDB 就绪，应用容器日志显示 PHP 8.3.32 development server 启动。应用容器到 `azpanel-phase1-db:3306` 的连接成功；三个页面在应用容器内均返回 HTTP 200：
 
 ```bash
 docker exec azpanel-phase1-app-run sh -lc '
@@ -782,15 +414,14 @@ exit 0
 
 ## 认证冒烟检查
 
-启动命令：`php think run --host 127.0.0.1 --port 8080`
-
 验证环境必须使用一次性数据库；仅可修改测试环境配置来切换验证码提供方，不触碰真实 Azure、邮件或 Telegram 资源。
 
-本机命令使用 PHP 8.2.32，开发服务器确实启动并监听 `127.0.0.1:8080`；但本机 PHP 缺少 `pdo_mysql`，数据库页面返回 `could not find driver`。为继续安全验证，使用当前源码构建一次性 `azpanel-phase1-app:local` 镜像（PHP 8.3.32、含 `pdo_mysql`），与一次性 MariaDB 10.11 容器置于专用 Docker network，并在应用容器内用 curl 访问开发服务器。没有 bind mount 工作树，也没有连接真实 Azure、邮件、Telegram 或 hCaptcha 服务。
+宿主 PHP 8.2.32 缺少 `pdo_mysql`，因此宿主开发服务器未运行。运行态验证使用当前源码构建的一次性 `azpanel-phase1-app:local` 镜像（PHP 8.3.32、含 `pdo_mysql`），与一次性 MariaDB 10.11 容器置于专用 Docker network，并在应用容器内用 curl 访问开发服务器。没有 bind mount 工作树，也没有连接真实 Azure、邮件、Telegram 或 hCaptcha 服务。
 
 | 页面 / 场景 | 操作与预期结果 | 状态 | 实际结果 / 证据 |
 | --- | --- | --- | --- |
-| 应用启动 | 执行启动命令后，请求 `/login`、`/register`、`/forget` 可获得应用响应 | 通过 | 本机原命令显示 `ThinkPHP Development server is started`；含数据库驱动的隔离镜像中三个 GET 均返回 HTTP 200。 |
+| 宿主 ThinkPHP 开发服务器 | 在宿主启动开发服务器 | 未运行 | 当前宿主 PHP 缺少 `pdo_mysql`；未提供或执行宿主后台启动命令。 |
+| 一次性容器应用启动 | 启动带本次标签的应用和数据库容器后，请求 `/login`、`/register`、`/forget` 可获得应用响应 | 通过 | 应用容器日志显示 PHP 8.3.32 development server 启动；三个容器内 GET 均返回 HTTP 200。 |
 | `/login` 基本字段 | 页面包含邮箱和密码字段，提交数据保留 legacy 字段名 | 通过 | GET 页面找到 `data-auth-login`、`name="email"`、`name="password"`；空字段 POST 返回“邮箱或密码不能为空”。 |
 | `/login` 无图形验证码 | 测试配置关闭图形验证码时不要求验证码，失败响应可见且可再次提交 | 通过 | 页面不含 `code` 或 `hcaptcha_result`；错误密码返回“密码不正确”，同一环境正确密码随后返回“登录成功”。 |
 | `/login` ThinkCaptcha | 测试配置选择 `think-captcha` 时显示并提交 `code`，错误验证码有失败反馈 | 通过 | 页面包含 `name="code"` 和 captcha 图片；错误值 POST 返回“验证码错误”。 |
@@ -813,6 +444,7 @@ exit 0
 
 ## 未覆盖的外部或浏览器验证
 
+- 未运行宿主 ThinkPHP 开发服务器：当前宿主 PHP 缺少 `pdo_mysql`；运行态证据来自无 bind mount 的一次性应用和数据库容器。
 - 未运行整套 `docker compose up`：Docker daemon 无法直接 bind mount 当前 devcontainer 工作树；仅运行了 `docker compose config` 和无 bind mount 的一次性镜像/数据库验证。
 - 未验证真实 SMTP 投递、真实 hCaptcha 成功 token、Azure 或 Telegram；避免触碰真实凭据和资源。
 - 未执行三个目标视口的真实浏览器布局检查；进入下一阶段前仍需在具备浏览器的环境补验。
