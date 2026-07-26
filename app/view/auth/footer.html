@@ -1,6 +1,12 @@
-<div class="mdui-typo" style="position: fixed; left: 0px; bottom: 0px; width: 100%">
-    <div class="mdui-m-y-1" style="margin: 0 auto; text-align: center">
-        {:app\\model\\Config::obtain('custom_text')}
-    </div>
-</div>
-{:app\\model\\Config::obtain('custom_script')}
+  </main>
+  <dialog class="az-dialog" data-notice-dialog aria-labelledby="notice-title">
+    <h2 id="notice-title" data-notice-title></h2>
+    <p data-notice-content aria-live="polite"></p>
+    <form method="dialog"><button class="az-button az-button--primary">知道了</button></form>
+  </dialog>
+  <footer class="az-auth__footer">
+    {:app\\model\\Config::obtain('custom_text')}
+  </footer>
+  {:app\\model\\Config::obtain('custom_script')}
+</body>
+</html>
