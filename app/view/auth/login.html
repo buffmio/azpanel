@@ -26,6 +26,7 @@
           <legend>验证码</legend>
           <input name="hcaptcha_result" type="hidden" value="">
           <div class="h-captcha" data-sitekey="{$verify.hcaptcha_site_key}"></div>
+          <noscript><p role="alert">hCaptcha 验证需要启用 JavaScript 后才能登录。</p></noscript>
         </fieldset>
         <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
       {/if}

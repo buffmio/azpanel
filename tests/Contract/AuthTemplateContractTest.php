@@ -34,6 +34,7 @@ final class AuthTemplateContractTest extends TestCase
         self::assertStringContainsString('action="/login"', $html);
         self::assertStringContainsString('method="post"', $html);
         self::assertStringContainsString('/static/js/auth/login.js', $html);
+        self::assertStringContainsString('<noscript>', $html);
         self::assertStringNotContainsString('$.ajax', $html);
     }
 }

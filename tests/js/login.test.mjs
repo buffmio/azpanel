@@ -104,14 +104,20 @@ test('login maps hCaptcha response and stays disabled until successful redirect'
     window: globalThis.window
   };
   const page = installLoginPage({
-    fields: [['email', 'a@example.com'], ['password', 'secret'], ['hcaptcha_result', '']],
+    fields: [
+      ['email', 'a@example.com'],
+      ['password', 'secret'],
+      ['hcaptcha_result', ''],
+      ['h-captcha-response', 'hcaptcha-token']
+    ],
     hcaptchaResponse: 'hcaptcha-token'
   });
   const redirects = [];
   const redirectTimers = [];
+  let requestBody;
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/login');
-    assert.equal(init.body.toString(), 'email=a%40example.com&password=secret&hcaptcha_result=hcaptcha-token');
+    requestBody = init.body.toString();
     return new Response(JSON.stringify({ status: '1', title: '登录成功', content: '欢迎回来' }), {
       headers: { 'content-type': 'application/json' }
     });
@@ -129,6 +135,7 @@ test('login maps hCaptcha response and stays disabled until successful redirect'
     await import(`${loginScript}?successful-redirect`);
     await page.getListener()({ preventDefault() {} });
 
+    assert.equal(requestBody, 'email=a%40example.com&password=secret&hcaptcha_result=hcaptcha-token');
     assert.equal(page.submit.disabled, true);
     assert.equal(page.submit.attributes.get('aria-busy'), 'true');
     assert.equal(page.title.textContent, '登录成功');
