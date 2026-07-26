@@ -22,7 +22,7 @@
 | 检查 | 命令 | 预期结果 | 状态 | 实际结果 / 证据 |
 | --- | --- | --- | --- | --- |
 | PHP 依赖 | `composer install` | 从 `composer.lock` 安装成功 | 通过 | 退出码 0；无需安装、更新或删除包，autoload、`service:discover` 和 `vendor:publish` 成功。 |
-| PHP 测试 | `composer test` | PHPUnit 全部通过 | 通过 | 退出码 0；`OK (11 tests, 54 assertions)`。 |
+| PHP 测试 | `composer test` | PHPUnit 全部通过 | 通过 | 退出码 0；`OK (12 tests, 58 assertions)`。 |
 | PHP 静态分析 | `composer analyse` | 不新增 PHPStan 错误 | 未通过 | 退出码 1；PHPStan 输出 `No rules detected`。当前 `phpstan.neon` 只有 `ignoreErrors`，没有规则级别或自定义 rules，因此本次不能证明“无新增错误”。 |
 | JS 请求层测试 | `npm run test:js` | 请求层测试全部通过 | 通过 | 退出码 0；21 个测试通过，0 个失败。 |
 | JS 语法 | `npm run check:js` | 新 JS 文件语法全部有效 | 通过 | 退出码 0；目标 JS 文件均通过 `node --check`。 |
@@ -31,7 +31,98 @@
 
 ## 可复现实验命令
 
-以下命令均从仓库根目录运行，变量和凭据仅用于一次性本地验证。Docker daemon 无法 bind mount 当前 devcontainer 路径，因此没有运行 `docker compose up`；`docker build` 会把构建上下文传给 daemon，并由 Dockerfile 的 `COPY . .` 将源码复制进镜像，不依赖运行时 bind mount。HTTP 请求也从应用容器内部发出，避免把 daemon 主机端口误当成 devcontainer 本机端口。
+以下所有 bash fenced blocks 必须从仓库根目录开始、按顺序粘贴到同一个 shell session；不要单独执行中间代码块。第一段建立隔离目录和 cleanup trap，后续命令只在 `git archive HEAD` 导出的临时源码中创建环境文件和构建上下文。变量和凭据仅用于一次性本地验证。
+
+Docker daemon 无法 bind mount 当前 devcontainer 路径，因此没有运行 `docker compose up`；`docker build` 会把临时构建上下文传给 daemon，并由 Dockerfile 的 `COPY . .` 将源码复制进镜像，不依赖运行时 bind mount。HTTP 请求也从应用容器内部发出，避免把 daemon 主机端口误当成 devcontainer 本机端口。
+
+```bash
+set -eu
+
+PHASE1_REPO_ROOT="$(git rev-parse --show-toplevel)"
+PHASE1_TMP_PARENT=/tmp
+PHASE1_TMP_ROOT="$(mktemp -d "$PHASE1_TMP_PARENT/azpanel-phase1.XXXXXXXX")"
+PHASE1_SOURCE="$PHASE1_TMP_ROOT/source"
+PHASE1_RUN_ID="${PHASE1_TMP_ROOT##*.}"
+PHASE1_LABEL_KEY=org.azpanel.phase1
+PHASE1_IMAGE=azpanel-phase1-app:local
+PHASE1_NETWORK=azpanel-phase1-net
+PHASE1_DB=azpanel-phase1-db
+PHASE1_APP=azpanel-phase1-app-run
+PHASE1_HOST_PID=
+
+phase1_stop_host() {
+  if [ -n "${PHASE1_HOST_PID:-}" ] \
+    && [ -d "/proc/$PHASE1_HOST_PID" ] \
+    && [ "$(readlink "/proc/$PHASE1_HOST_PID/cwd" 2>/dev/null)" = "$PHASE1_SOURCE" ]; then
+    kill "$PHASE1_HOST_PID"
+    wait "$PHASE1_HOST_PID" 2>/dev/null || true
+  fi
+  PHASE1_HOST_PID=
+}
+
+phase1_cleanup() {
+  phase1_status=$?
+  trap - EXIT INT TERM
+  set +e
+  phase1_stop_host
+  cd "$PHASE1_REPO_ROOT"
+
+  if [ "$(docker inspect --format '{{ index .Config.Labels "org.azpanel.phase1" }}' \
+    "$PHASE1_APP" 2>/dev/null)" = "$PHASE1_RUN_ID" ]; then
+    docker rm -f "$PHASE1_APP"
+  fi
+  if [ "$(docker inspect --format '{{ index .Config.Labels "org.azpanel.phase1" }}' \
+    "$PHASE1_DB" 2>/dev/null)" = "$PHASE1_RUN_ID" ]; then
+    docker rm -f "$PHASE1_DB"
+  fi
+  if [ "$(docker network inspect --format '{{ index .Labels "org.azpanel.phase1" }}' \
+    "$PHASE1_NETWORK" 2>/dev/null)" = "$PHASE1_RUN_ID" ]; then
+    docker network rm "$PHASE1_NETWORK"
+  fi
+  if [ "$(docker image inspect --format '{{ index .Config.Labels "org.azpanel.phase1" }}' \
+    "$PHASE1_IMAGE" 2>/dev/null)" = "$PHASE1_RUN_ID" ]; then
+    docker image rm "$PHASE1_IMAGE"
+  fi
+
+  case "${PHASE1_TMP_ROOT:-}" in
+    "$PHASE1_TMP_PARENT"/azpanel-phase1.*)
+      if [ -n "$PHASE1_TMP_ROOT" ] \
+        && [ "$PHASE1_TMP_ROOT" != "$PHASE1_TMP_PARENT" ] \
+        && [ -d "$PHASE1_TMP_ROOT" ]; then
+        find "$PHASE1_TMP_ROOT" -mindepth 1 -delete
+        rmdir "$PHASE1_TMP_ROOT"
+      fi
+      ;;
+    *)
+      printf 'refusing to clean unexpected path: %s\n' "${PHASE1_TMP_ROOT:-<empty>}" >&2
+      ;;
+  esac
+  exit "$phase1_status"
+}
+trap phase1_cleanup EXIT INT TERM
+
+for phase1_container in "$PHASE1_APP" "$PHASE1_DB"; do
+  if docker inspect "$phase1_container" >/dev/null 2>&1; then
+    printf 'refusing to replace existing container: %s\n' "$phase1_container" >&2
+    exit 1
+  fi
+done
+if docker network inspect "$PHASE1_NETWORK" >/dev/null 2>&1; then
+  printf 'refusing to replace existing network: %s\n' "$PHASE1_NETWORK" >&2
+  exit 1
+fi
+if docker image inspect "$PHASE1_IMAGE" >/dev/null 2>&1; then
+  printf 'refusing to replace existing image: %s\n' "$PHASE1_IMAGE" >&2
+  exit 1
+fi
+
+mkdir "$PHASE1_SOURCE"
+git archive HEAD | tar -x -C "$PHASE1_SOURCE"
+cd "$PHASE1_SOURCE"
+composer install
+```
+
+关键实际结果：临时根目录非空且匹配 `/tmp/azpanel-phase1.*`；验证只读取 `HEAD` 的归档内容。工作树中的现有 `.env`、`.docker.env` 和其他未提交文件不会被复制到临时源码，也不会被 cleanup 读取、覆盖或删除。
 
 ### Compose 配置解析
 
@@ -56,27 +147,25 @@ DATABASE_HOSTPORT=3306
 EOF
 
 docker compose config
-unlink .env .docker.env
 ```
 
-关键实际结果：首次在两个文件不存在时退出 1，并报告 `.docker.env` 不存在；使用以上占位文件后退出 0，输出 `app`、`web`、`db` 三个服务及完整 volumes/networks 配置。
+关键实际结果：首次在两个文件不存在时退出 1，并报告 `.docker.env` 不存在；使用以上占位文件后退出 0，输出 `app`、`web`、`db` 三个服务及完整 volumes/networks 配置。两个占位文件仅存在于临时源码目录，最终由经过路径校验的 cleanup trap 删除。
 
 ### 宿主开发服务器探测
 
-在一个终端启动简报指定的原命令：
+在同一个 shell session 后台启动简报指定的原命令：
 
 ```bash
-php think run --host 127.0.0.1 --port 8080
-```
-
-在第二个终端检查 PHP 扩展和页面，再用 `Ctrl-C` 停止开发服务器：
-
-```bash
+php think run --host 127.0.0.1 --port 8080 \
+  > "$PHASE1_TMP_ROOT/host-server.log" 2>&1 &
+PHASE1_HOST_PID=$!
+sleep 2
 php -m | rg 'PDO|pdo_mysql'
-curl --silent --output /tmp/phase1-host-login \
+curl --silent --output "$PHASE1_TMP_ROOT/host-login" \
   --write-out 'HTTP %{http_code}\n' \
   http://127.0.0.1:8080/login
-rg -o 'could not find driver' /tmp/phase1-host-login
+rg -o 'could not find driver' "$PHASE1_TMP_ROOT/host-login"
+phase1_stop_host
 ```
 
 关键实际结果：启动命令显示 `ThinkPHP Development server is started`；本机仅列出 PDO core、没有 `pdo_mysql`，`/login` 返回 HTTP 500 和 `could not find driver`。因此后续数据库相关 HTTP 验证转入包含项目 Dockerfile 所声明扩展的镜像。
@@ -86,12 +175,17 @@ rg -o 'could not find driver' /tmp/phase1-host-login
 构建复制当前源码的本地镜像，创建专用 network 和 MariaDB：
 
 ```bash
-docker build --tag azpanel-phase1-app:local .
-docker network create azpanel-phase1-net
+docker build \
+  --label "$PHASE1_LABEL_KEY=$PHASE1_RUN_ID" \
+  --tag "$PHASE1_IMAGE" .
+docker network create \
+  --label "$PHASE1_LABEL_KEY=$PHASE1_RUN_ID" \
+  "$PHASE1_NETWORK"
 
 docker run --rm -d \
-  --name azpanel-phase1-db \
-  --network azpanel-phase1-net \
+  --name "$PHASE1_DB" \
+  --network "$PHASE1_NETWORK" \
+  --label "$PHASE1_LABEL_KEY=$PHASE1_RUN_ID" \
   -e MARIADB_ROOT_PASSWORD=phase1-root \
   -e MARIADB_DATABASE=azpanel_phase1 \
   -e MARIADB_USER=azpanel_phase1 \
@@ -134,8 +228,9 @@ UPDATE config SET value='noreply@example.test' WHERE item='smtp_sender';
 SQL
 
 docker run --rm -d \
-  --name azpanel-phase1-app-run \
-  --network azpanel-phase1-net \
+  --name "$PHASE1_APP" \
+  --network "$PHASE1_NETWORK" \
+  --label "$PHASE1_LABEL_KEY=$PHASE1_RUN_ID" \
   -e APP_DEBUG=true \
   -e DATABASE_TYPE=mysql \
   -e DATABASE_HOSTNAME=azpanel-phase1-db \
@@ -143,11 +238,11 @@ docker run --rm -d \
   -e DATABASE_USERNAME=azpanel_phase1 \
   -e DATABASE_PASSWORD=phase1-only \
   -e DATABASE_HOSTPORT=3306 \
-  azpanel-phase1-app:local \
+  "$PHASE1_IMAGE" \
   sh -lc 'python3 -m smtpd -n -c DebuggingServer 127.0.0.1:1025 & exec php think run --host 0.0.0.0 --port 8080'
 ```
 
-关键实际结果：镜像构建退出 0，MariaDB 就绪，应用日志显示 PHP 8.3.32 development server 启动。应用容器到 `azpanel-phase1-db:3306` 的连接成功；三个页面在应用容器内均返回 HTTP 200：
+关键实际结果：镜像构建退出 0；构建日志先显示 `COPY composer.json composer.lock ./`，随后显示 `Installing dependencies from lock file`、`90 installs, 0 updates, 0 removals`。MariaDB 就绪，应用日志显示 PHP 8.3.32 development server 启动。应用容器到 `azpanel-phase1-db:3306` 的连接成功；三个页面在应用容器内均返回 HTTP 200：
 
 ```bash
 docker exec azpanel-phase1-app-run sh -lc '
@@ -337,12 +432,10 @@ docker exec azpanel-phase1-app-run curl --silent -X POST \
 
 关键实际结果：验证码请求因本地 sink 的 STARTTLS 限制返回 HTTP 500；其余响应依次为“两次输入的密码不符”、“验证码不相符”、“重置成功”和“登录成功”。
 
-清理所有一次性资源：
+退出同一个 shell session 即触发 cleanup trap；也可显式执行：
 
 ```bash
-docker rm -f azpanel-phase1-app-run azpanel-phase1-db
-docker network rm azpanel-phase1-net
-docker image rm azpanel-phase1-app:local
+exit 0
 ```
 
 ## 认证冒烟检查

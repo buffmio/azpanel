@@ -34,7 +34,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR ${APP_HOME}
 
-COPY composer.json ./
+COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
 
 COPY . .
