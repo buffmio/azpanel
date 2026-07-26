@@ -37,4 +37,56 @@ final class AuthTemplateContractTest extends TestCase
         self::assertStringContainsString('<noscript>', $html);
         self::assertStringNotContainsString('$.ajax', $html);
     }
+
+    /**
+     * @dataProvider registrationAndPasswordResetPages
+     *
+     * @param list<string> $contracts
+     */
+    public function testRegistrationAndPasswordResetFormsPreserveFieldsAndEndpoints(
+        string $template,
+        array $contracts
+    ): void {
+        $html = file_get_contents(dirname(__DIR__, 2) . '/app/view/auth/' . $template);
+
+        foreach ($contracts as $contract) {
+            self::assertStringContainsString($contract, $html);
+        }
+
+        self::assertStringContainsString('method="post"', $html);
+        self::assertStringNotContainsString('$.ajax', $html);
+        self::assertStringNotContainsString('onclick=', strtolower($html));
+        self::assertStringNotContainsString('</html>', strtolower($html));
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>}>
+     */
+    public static function registrationAndPasswordResetPages(): iterable
+    {
+        yield 'register' => [
+            'register.html',
+            [
+                'action="/register"',
+                'name="email"',
+                'name="passwd"',
+                'name="repeat_passwd"',
+                'name="verify_code"',
+                'name="code"',
+                'name="hcaptcha_result"',
+                '/register/code',
+            ],
+        ];
+        yield 'forget' => [
+            'forget.html',
+            [
+                'action="/forget"',
+                'name="email"',
+                'name="passwd"',
+                'name="repeat_passwd"',
+                'name="verify_code"',
+                '/forget/code',
+            ],
+        ];
+    }
 }

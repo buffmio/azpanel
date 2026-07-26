@@ -1,118 +1,63 @@
 {include file="../app/view/auth/header.html" title="注册" /}
 
-<div class="mdui-container-fluid">
-    <div class="mdui-row">
-        <div class="mdui-col-xs-12 mdui-col-md-4 mdui-col-offset-md-4">
-            <div class="mdui-card" style="transform: translateY(20%)">
-                <div class="mdui-card-content">
-                    {if $register.allow_public_reg == true}
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">account_circle</i>
-                        <label class="mdui-textfield-label">注册邮箱</label>
-                        <input class="mdui-textfield-input" type="text" id="email" />
-                    </div>
-
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">vpn_key</i>
-                        <label class="mdui-textfield-label">设置登录密码</label>
-                        <input class="mdui-textfield-input" type="password" id="passwd" />
-                    </div>
-
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">vpn_key</i>
-                        <label class="mdui-textfield-label">再次输入密码</label>
-                        <input class="mdui-textfield-input" type="password" id="repeat_passwd" />
-                    </div>
-
-                    {if $register.reg_email_veriy == true}
-                    <div class="mdui-textfield mdui-textfield-floating-label">
-                        <i class="mdui-icon material-icons">markunread_mailbox</i>
-                        <label class="mdui-textfield-label">请输入邮箱验证码</label>
-                        <input class="mdui-textfield-input" id="verify_code" />
-                    </div>
-                    {/if}
-
-                    {if $verify.registration_verification_code == '1'}
-                    {if $verify.captcha_provider == 'think-captcha'}
-                    <div class="mdui-row">
-                        <div class="mdui-textfield mdui-textfield-floating-label mdui-col-xs-6">
-                            <i class="mdui-icon material-icons">code</i>
-                            <label class="mdui-textfield-label">验证码</label>
-                            <input class="mdui-textfield-input" type="text" id="code" required />
-                        </div>
-                        <div class="mdui-col-xs-4 mdui-m-t-2">
-                            {:captcha_img()}
-                        </div>
-                    </div>
-                    {/if}
-                    {if $verify.captcha_provider == 'hcaptcha'}
-                    <div class="mdui-m-t-2 h-captcha" data-sitekey="{$verify.hcaptcha_site_key}"></div>
-                    {/if}
-                    {/if}
-
-                    <div class="mdui-card-actions">
-                        {if $register.reg_email_veriy == true}
-                        <button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-indigo" id="request_code">
-                            获取
-                        </button>
-                        {/if}
-                        <button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-indigo mdui-float-right"
-                            id="register_user">
-                            注册
-                        </button>
-                    </div>
-
-                    {else /}
-                    <p style="text-align: center">
-                        管理员未开放公共注册。如有需要，请联系管理员
-                    </p>
-                    {/if}
-                </div>
-            </div>
-        </div>
+{if $register.allow_public_reg == true}
+<section class="az-auth__panel az-card" aria-labelledby="register-title">
+  <h1 id="register-title">注册</h1>
+  <form class="az-auth__form" action="/register" method="post" data-auth-register>
+    <div class="az-field">
+      <label for="email">注册邮箱</label>
+      <input class="az-input" id="email" name="email" type="email" autocomplete="email" required>
     </div>
-</div>
-</body>
 
-<script>
-    var $ = mdui.$;
-    $('#register_user').on('click', function () {
-        $.ajax({
-            method: 'POST',
-            url: "/register",
-            data: {
-                code: $('#code').val(), // 如果使用 think-captcha
-                email: $('#email').val(),
-                passwd: $('#passwd').val(),
-                verify_code: $('#verify_code').val(),
-                repeat_passwd: $('#repeat_passwd').val(),
-                hcaptcha_result: $('[name=h-captcha-response]').val(), // 如果使用 hcaptcha
-            },
-            dataType: "json",
-            success: function (data) {
-                mdui.alert(data.content, data.title);
-                if (data.status == '1') {
-                    setTimeout("window.location.href = '/login'", 1500);
-                }
-            }
-        });
-    });
+    <div class="az-field">
+      <label for="passwd">设置登录密码</label>
+      <input class="az-input" id="passwd" name="passwd" type="password" autocomplete="new-password" required>
+    </div>
 
-    $('#request_code').on('click', function () {
-        $.ajax({
-            method: 'POST',
-            url: "/register/code",
-            data: {
-                email: $('#email').val()
-            },
-            dataType: "json",
-            success: function (data) {
-                mdui.alert(data.content, data.title);
-            }
-        });
-    });
-</script>
+    <div class="az-field">
+      <label for="repeat-passwd">再次输入密码</label>
+      <input class="az-input" id="repeat-passwd" name="repeat_passwd" type="password" autocomplete="new-password" required>
+    </div>
 
+    {if $register.reg_email_veriy == true}
+      <div class="az-field">
+        <label for="verify-code">邮箱验证码</label>
+        <input class="az-input" id="verify-code" name="verify_code" type="text" autocomplete="one-time-code" required>
+      </div>
+      <button class="az-button" type="button" data-request-code="/register/code">获取验证码</button>
+    {/if}
+
+    {if $verify.registration_verification_code == '1'}
+      {if $verify.captcha_provider == 'think-captcha'}
+        <div class="az-field">
+          <label for="code">验证码</label>
+          <input class="az-input" id="code" name="code" type="text" autocomplete="off" required>
+          {:captcha_img()}
+        </div>
+      {/if}
+      {if $verify.captcha_provider == 'hcaptcha'}
+        <fieldset class="az-field">
+          <legend>验证码</legend>
+          <input name="hcaptcha_result" type="hidden" value="">
+          <div class="h-captcha" data-sitekey="{$verify.hcaptcha_site_key}"></div>
+          <noscript><p role="alert">hCaptcha 验证需要启用 JavaScript 后才能注册。</p></noscript>
+        </fieldset>
+        <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+      {/if}
+    {/if}
+
+    <button class="az-button az-button--primary" type="submit" data-submit>注册</button>
+  </form>
+
+  <p><a href="/login">返回登录</a></p>
+</section>
+{else /}
+<section class="az-auth__panel az-card" aria-labelledby="register-title">
+  <h1 id="register-title">注册</h1>
+  <p>管理员未开放公共注册。如有需要，请联系管理员。</p>
+  <p><a href="/login">返回登录</a></p>
+</section>
+{/if}
+
+<script type="module" src="/static/js/auth/register.js"></script>
 {include file="../app/view/auth/footer.html" /}
-
-</html>
