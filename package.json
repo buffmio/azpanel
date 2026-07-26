@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "node --test tests/js/*.test.mjs",
+    "check:js": "find public/static/js -type f \\( -path '*/app/*.js' -o -path '*/auth/*.js' \\) -print0 | xargs -0 -r -n1 node --check"
+  }
+}
