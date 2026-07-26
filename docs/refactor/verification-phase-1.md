@@ -49,15 +49,34 @@ PHASE1_NETWORK=azpanel-phase1-net
 PHASE1_DB=azpanel-phase1-db
 PHASE1_APP=azpanel-phase1-app-run
 PHASE1_HOST_PID=
+PHASE1_HOST_PGID=
 
 phase1_stop_host() {
+  phase1_host_members=
+  phase1_host_members_valid=1
   if [ -n "${PHASE1_HOST_PID:-}" ] \
-    && [ -d "/proc/$PHASE1_HOST_PID" ] \
-    && [ "$(readlink "/proc/$PHASE1_HOST_PID/cwd" 2>/dev/null)" = "$PHASE1_SOURCE" ]; then
-    kill "$PHASE1_HOST_PID"
-    wait "$PHASE1_HOST_PID" 2>/dev/null || true
+    && [ "${PHASE1_HOST_PGID:-}" = "$PHASE1_HOST_PID" ]; then
+    phase1_host_members="$(
+      ps -eo pid=,pgid= |
+        awk -v pgid="$PHASE1_HOST_PGID" '$2 == pgid { print $1 }'
+    )"
+    for phase1_host_member in $phase1_host_members; do
+      if [ "$(readlink "/proc/$phase1_host_member/cwd" 2>/dev/null)" \
+        != "$PHASE1_SOURCE" ]; then
+        printf 'refusing to stop host PID outside temporary source: %s\n' \
+          "$phase1_host_member" >&2
+        phase1_host_members_valid=0
+      fi
+    done
+    if [ "$phase1_host_members_valid" -eq 1 ]; then
+      for phase1_host_member in $phase1_host_members; do
+        kill "$phase1_host_member" 2>/dev/null || true
+      done
+      wait "$PHASE1_HOST_PID" 2>/dev/null || true
+    fi
   fi
   PHASE1_HOST_PID=
+  PHASE1_HOST_PGID=
 }
 
 phase1_cleanup() {
@@ -156,19 +175,64 @@ docker compose config
 在同一个 shell session 后台启动简报指定的原命令：
 
 ```bash
-php think run --host 127.0.0.1 --port 8080 \
+PHASE1_HOST_PORT=18080
+if ss -H -ltn "sport = :$PHASE1_HOST_PORT" | rg -q .; then
+  printf 'refusing to use an occupied host port: %s\n' "$PHASE1_HOST_PORT" >&2
+  exit 1
+fi
+
+setsid php think run --host 127.0.0.1 --port "$PHASE1_HOST_PORT" \
   > "$PHASE1_TMP_ROOT/host-server.log" 2>&1 &
 PHASE1_HOST_PID=$!
-sleep 2
+PHASE1_HOST_PGID=$PHASE1_HOST_PID
 php -m | rg 'PDO|pdo_mysql'
-curl --silent --output "$PHASE1_TMP_ROOT/host-login" \
-  --write-out 'HTTP %{http_code}\n' \
-  http://127.0.0.1:8080/login
-rg -o 'could not find driver' "$PHASE1_TMP_ROOT/host-login"
+
+PHASE1_HOST_STATUS=
+PHASE1_HOST_READY=0
+for attempt in $(seq 1 10); do
+  if ! kill -0 "$PHASE1_HOST_PID" 2>/dev/null; then
+    cat "$PHASE1_TMP_ROOT/host-server.log" >&2
+    printf 'host server exited before readiness\n' >&2
+    exit 1
+  fi
+
+  if ! rg -q -F \
+    "ThinkPHP Development server is started On <http://127.0.0.1:$PHASE1_HOST_PORT/>" \
+    "$PHASE1_TMP_ROOT/host-server.log"; then
+    sleep 1
+    continue
+  fi
+
+  PHASE1_HOST_STATUS="$(
+    curl --silent --show-error \
+      --output "$PHASE1_TMP_ROOT/host-login" \
+      --write-out '%{http_code}' \
+      "http://127.0.0.1:$PHASE1_HOST_PORT/login" || true
+  )"
+  if [ "$PHASE1_HOST_STATUS" = 200 ] \
+    && rg -q -F 'data-auth-login' "$PHASE1_TMP_ROOT/host-login"; then
+    PHASE1_HOST_READY=1
+    break
+  fi
+  if [ "$PHASE1_HOST_STATUS" = 500 ] \
+    && rg -q '127\.0\.0\.1:[0-9]+ \[500\]: GET /login' \
+      "$PHASE1_TMP_ROOT/host-server.log"; then
+    PHASE1_HOST_READY=1
+    break
+  fi
+  sleep 1
+done
+
+kill -0 "$PHASE1_HOST_PID"
+rg -q -F \
+  "ThinkPHP Development server is started On <http://127.0.0.1:$PHASE1_HOST_PORT/>" \
+  "$PHASE1_TMP_ROOT/host-server.log"
+test "$PHASE1_HOST_READY" -eq 1
+printf 'HTTP %s\n' "$PHASE1_HOST_STATUS"
 phase1_stop_host
 ```
 
-关键实际结果：启动命令显示 `ThinkPHP Development server is started`；本机仅列出 PDO core、没有 `pdo_mysql`，`/login` 返回 HTTP 500 和 `could not find driver`。因此后续数据库相关 HTTP 验证转入包含项目 Dockerfile 所声明扩展的镜像。
+关键实际结果：启动前确认 `127.0.0.1:18080` 未被监听；启动后子进程存活，临时日志包含本次 host/port 的 `ThinkPHP Development server is started`。有限重试中的 `/login` 返回 HTTP 500，且本次服务器日志记录同一路径和状态；若宿主具有 `pdo_mysql`，则要求 HTTP 200 且正文包含本项目登录表单的 `data-auth-login`。cleanup 只终止独立进程组中 cwd 仍等于临时源码目录的 PID。因此当前环境的后续数据库相关 HTTP 验证转入包含项目 Dockerfile 所声明扩展的镜像。
 
 ### 一次性应用与数据库
 
