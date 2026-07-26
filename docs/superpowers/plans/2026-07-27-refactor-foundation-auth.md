@@ -272,7 +272,7 @@ Run:
 php -r 'require "vendor/autoload.php"; $p=new tests\Support\RouteSourceParser(); var_export($p::parse(file_get_contents("route/app.php")));' > /tmp/azpanel-http-contract.txt
 ```
 
-Create `tests/Fixtures/http-contract.php` with `<?php return ` followed by the reviewed exported array and a trailing semicolon. Confirm that all explicit routes and three resource declarations from `route/app.php` appear exactly once.
+Create `tests/Fixtures/http-contract.php` with `<?php return ` followed by the reviewed exported array and a trailing semicolon. Confirm that all explicit routes and five resource declarations from `route/app.php` appear exactly once.
 
 - [ ] **Step 5: Create the feature matrix with concrete ownership**
 
@@ -296,9 +296,9 @@ Run: `composer test -- --filter HttpContractTest`
 
 Expected: 2 tests pass.
 
-Run: `rg -L '迁移状态' docs/refactor/feature-matrix.md`
+Run: `rg --files-without-match '迁移状态' docs/refactor/feature-matrix.md`
 
-Expected: no output.
+Expected: no output and exit 1, meaning no file is missing the column. For an exit-0 gate, run `test -z "$(rg --files-without-match '迁移状态' docs/refactor/feature-matrix.md || true)"`.
 
 - [ ] **Step 7: Commit the compatibility baseline**
 

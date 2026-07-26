@@ -50,6 +50,11 @@
             "": "extend/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "tests\\": "tests/"
+        }
+    },
     "config": {
         "preferred-install": "dist",
         "allow-plugins": {
